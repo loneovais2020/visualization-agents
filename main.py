@@ -3,10 +3,10 @@ import PyPDF2
 import docx
 import pandas as pd
 from prompts import *
-
-
+from langchain_experimental.agents import create_pandas_dataframe_agent
+import pandas as pd
 from langchain_google_vertexai import ChatVertexAI
-
+import io
 from crewai import Agent, Task, Crew, LLM
 from crewai_tools import CodeInterpreterTool, SerperDevTool
 from dotenv import load_dotenv
@@ -140,350 +140,246 @@ file_selection_crew = Crew(
 
 
 
-dataset_analyst_agent = Agent(
-    llm=llm,
-    role="Data Analyst",
-    goal="Process user queries and file paths by writing and executing Python code with proper structure and error handling.",
-    backstory="""You are an expert data analyst who performs detailed data analysis and creates visualizations. 
-    You load datasets using proper methods, perform analysis, and create visualizations using well-structured Python code.
-    You follow best practices including error handling, code organization, and clear documentation.""",
-    allow_code_execution=True,
-    tools=[run_codes]
-)
 
-
-
-dataset_data_analysis_task = Task(
-    description="""Your task is to act as an experienced data analyst who helps users with their queries.
-    
-    First steps for every query:
-    1. Carefully analyze the user query to determine if they are requesting:
-       - Data analysis only
-       - Data analysis with visualizations
-       - Primarily visualizations
-    
-    Process steps:
-    1. Load and inspect the data using proper error handling with try-except blocks
-    2. Clean and preprocess the data as needed
-    3. Perform the requested analysis with meaningful comments
-    4. If visualizations are requested:
-       - Create appropriate visualizations with proper labels, titles, and formatting
-       - Save visualizations to {charts_folder} with descriptive names including a random 8-digit identifier
-       - Provide insightful analysis of what the visualizations reveal
-    
-    Code quality requirements:
-    - Use proper error handling with try-except blocks for all file operations and data processing
-    - Include clear comments explaining major steps and observations
-    - Print key observations and statistics during execution
-    - Follow a logical step-by-step approach to data analysis
-    - Use appropriate libraries (pandas, matplotlib, seaborn, etc.) effectively
-    
-    The user query is: {user_query}
-    The data is located at: {file_path}
-    """,
-    agent=dataset_analyst_agent,
-    expected_output="""The output should be in JSON format with keys as 'response' and 'created_charts'. The value for 'response' should be the analysis that you did, the value for 'created_charts' should be a list of filenames of charts that you generated (if any)"""
-)
 
 
 
 # New Data Processing Agent
-dataset_processor_agent = Agent(
+# dataset_processor_agent = Agent(
+#     llm=llm,
+#     role="Data Processor",
+#     goal="Transform and prepare data for analysis by generating processed datasets that can be directly used for analysis and visualization.",
+#     backstory="""You are a specialized data processing expert who excels at transforming raw data into analysis-ready formats.
+#     You understand data structures deeply and can efficiently clean, transform, and restructure data to make the analyst's job easier.
+#     Your expertise is in creating intermediate data representations that are optimized for specific analysis tasks.""",
+#     allow_code_execution=True,
+#     tools=[CodeInterpreterTool(unsafe_mode=True)]
+# )
+
+# # New Data Processing Task
+# dataset_processing_task = Task(
+#     description="""Your task is to process and transform the extracted data into a format that's optimized for the specific analysis needed.
+    
+#     Process steps:
+#     1. Load the raw data using proper error handling with try-except blocks
+#     2. Understand what exact data transformations are needed based on the analysis requirements
+#     3. Perform necessary data cleaning, including:
+#        - Handling missing values
+#        - Converting data types
+#        - Normalizing or scaling values if needed
+#        - Filtering out irrelevant records
+#        - Creating derived features if beneficial
+#     4. Reshape the data if needed (pivot, melt, etc.)
+#     5. Document all transformations performed
+#     6. Provide the processed data in a format that can be directly used by the analysis agent
+    
+#     Code quality requirements:
+#     - Use proper error handling with try-except blocks
+#     - Include clear comments explaining each transformation step
+#     - Print summaries of the data before and after processing
+#     - Use efficient methods for data transformation
+#     - Document any assumptions made during processing
+    
+#     The user query is: {user_query}
+#     The raw data is located at: {file_path}
+#     """,
+#     agent=dataset_processor_agent,
+#     expected_output="""A processed dataset with the following information:
+#     1. The processed data in a suitable format
+#     2. Documentation of all transformations applied
+#     3. Summary statistics of the processed data
+#     4. Any relevant insights or issues discovered during processing"""
+# )
+
+# dataset_data_analysis_crew = Crew(
+#     agents=[dataset_processor_agent, dataset_analyst_agent],
+#     tasks=[dataset_processing_task, dataset_data_analysis_task],
+#     verbose= True
+# )
+
+
+# data_preparation_agent = Agent(
+#     llm=llm,
+#     role="Data Preparation Specialist",
+#     goal="Interpret user queries and extract relevant data from provided file content with careful consideration of requirements.",
+#     backstory="""An expert in data extraction and preparation, skilled at understanding user requirements and processing raw data accordingly.
+#     You excel at interpreting the nuances of data requests and preparing exactly what's needed for analysis.""",
+#     allow_code_execution=False
+# )
+
+# data_preparation_task = Task(
+#     description="""Interpret the user query and extract the necessary data from the provided file content.
+    
+#     Process:
+#     1. Carefully analyze the user query to understand:
+#        - What specific data elements are needed
+#        - What transformations might be required
+#        - Whether the query requires analysis, visualization, or both
+    
+#     2. Extract and structure the relevant data from the file content
+    
+#     The user query is: {user_query}
+#     The file content is: {file_content}""",
+#     agent=data_preparation_agent,
+#     expected_output="Processed data ready for analysis with clear structure and documentation of any transformations performed."
+# )
+
+
+
+
+# data_analysis_crew = Crew(
+#     agents=[data_preparation_agent,dataset_processor_agent],
+#     tasks=[data_preparation_task, data_preparation_task],
+#     verbose=True
+# )
+
+
+
+
+
+# File Data Extraction Agent - Extracts relevant data from the file content
+file_data_extraction_agent = Agent(
     llm=llm,
-    role="Data Processor",
-    goal="Transform and prepare data for analysis by generating processed datasets that can be directly used for analysis and visualization.",
-    backstory="""You are a specialized data processing expert who excels at transforming raw data into analysis-ready formats.
-    You understand data structures deeply and can efficiently clean, transform, and restructure data to make the analyst's job easier.
-    Your expertise is in creating intermediate data representations that are optimized for specific analysis tasks.""",
-    allow_code_execution=True,
-    tools=[CodeInterpreterTool(unsafe_mode=True)]
-)
-
-# New Data Processing Task
-dataset_processing_task = Task(
-    description="""Your task is to process and transform the extracted data into a format that's optimized for the specific analysis needed.
-    
-    Process steps:
-    1. Load the raw data using proper error handling with try-except blocks
-    2. Understand what exact data transformations are needed based on the analysis requirements
-    3. Perform necessary data cleaning, including:
-       - Handling missing values
-       - Converting data types
-       - Normalizing or scaling values if needed
-       - Filtering out irrelevant records
-       - Creating derived features if beneficial
-    4. Reshape the data if needed (pivot, melt, etc.)
-    5. Document all transformations performed
-    6. Provide the processed data in a format that can be directly used by the analysis agent
-    
-    Code quality requirements:
-    - Use proper error handling with try-except blocks
-    - Include clear comments explaining each transformation step
-    - Print summaries of the data before and after processing
-    - Use efficient methods for data transformation
-    - Document any assumptions made during processing
-    
-    The user query is: {user_query}
-    The raw data is located at: {file_path}
-    """,
-    agent=dataset_processor_agent,
-    expected_output="""A processed dataset with the following information:
-    1. The processed data in a suitable format
-    2. Documentation of all transformations applied
-    3. Summary statistics of the processed data
-    4. Any relevant insights or issues discovered during processing"""
-)
-
-dataset_data_analysis_crew = Crew(
-    agents=[dataset_processor_agent, dataset_analyst_agent],
-    tasks=[dataset_processing_task, dataset_data_analysis_task],
-    verbose= True
-)
-
-
-data_preparation_agent = Agent(
-    llm=llm,
-    role="Data Preparation Specialist",
-    goal="Interpret user queries and extract relevant data from provided file content with careful consideration of requirements.",
-    backstory="""An expert in data extraction and preparation, skilled at understanding user requirements and processing raw data accordingly.
-    You excel at interpreting the nuances of data requests and preparing exactly what's needed for analysis.""",
+    role="File Data Extraction Specialist",
+    goal="Extract relevant data from provided file content based on the user query.",
+    backstory="""You are an expert in processing file content and extracting meaningful data from it.
+    You analyze the user query, identify relevant data, and structure it for further processing into a CSV file.""",
     allow_code_execution=False
 )
 
-
-data_analysis_agent = Agent(
-    llm=llm,
-    role="Data Analyst",
-    goal="Perform comprehensive data analysis and create visualizations based on processed data using well-structured code.",
-    backstory="""A proficient data analyst capable of executing Python code to analyze data and generate insightful visualizations.
-    You follow best practices for code structure, error handling, and documentation while delivering clear insights.""",
-    allow_code_execution=True,
-    tools=[CodeInterpreterTool(unsafe_mode=True)]
-)
-
-
-data_preparation_task = Task(
-    description="""Interpret the user query and extract the necessary data from the provided file content.
+# Task for File Data Extraction Agent
+file_data_extraction_task = Task(
+    description="""Your task is to extract relevant data from the provided file content based on the user's query.
     
     Process:
-    1. Carefully analyze the user query to understand:
-       - What specific data elements are needed
-       - What transformations might be required
-       - Whether the query requires analysis, visualization, or both
-    
-    2. Extract and structure the relevant data from the file content
-    
-    The user query is: {user_query}
-    The file content is: {file_content}""",
-    agent=data_preparation_agent,
-    expected_output="Processed data ready for analysis with clear structure and documentation of any transformations performed."
+    1. Analyze the user query to determine the specific data required
+    2. Read and parse the file content
+    3. Extract and organize relevant data in a structured format
+    4. Ensure the extracted data is:
+       - Relevant to the user's query
+       - Well-structured and formatted for CSV conversion
+       - Ready for processing by the CSV generation agent
+    5. Provide the structured data to the CSV data processor agent
+
+    The user query is: {user_query}\n
+    The file content is: {file_content}\n
+    """,
+    agent=file_data_extraction_agent,
+    expected_output="""Extracted data related to the user's query, including:
+    1. The structured or semi-structured data from the file
+    2. Any necessary context for understanding the data"""
 )
 
+# CSV Data Processor Agent - Converts extracted data into a CSV file
+csv_file_processor_agent = Agent(
+    llm=llm,
+    role="CSV Data Processor",
+    goal="Transform extracted file data into a structured CSV file.",
+    backstory="""You are an expert in data processing and transformation. Your main responsibility is to take the extracted data 
+    and convert it into a clean, well-structured CSV file, ensuring proper formatting for analysis.""",
+)
 
-data_analysis_task = Task(
-    description="""Your task is to act as an experienced data analyst who helps users with their queries.
-    
-    First steps for every query:
-    1. Carefully analyze what the user is requesting:
-       - Data analysis only
-       - Data analysis with visualizations
-       - Primarily visualizations
+# Task for CSV Data Processor Agent
+csv_file_processing_task = Task(
+    description="""Your task is to process the extracted data from file content and output it as a CSV file.
     
     Process steps:
-    1. Load and validate the prepared data using proper error handling with try-except blocks
-    2. Perform any additional data cleaning or transformation needed
-    3. Conduct the requested analysis with meaningful comments and printed observations
-    4. If visualizations are requested:
-       - Create appropriate visualizations with proper labels, titles, and formatting
-       - Save visualizations to {charts_folder} with descriptive names including a random 8-digit identifier
-       - Provide insightful analysis of what the visualizations reveal
-    
-    Code quality requirements:
-    - Use proper error handling with try-except blocks
-    - Include clear comments explaining major steps
-    - Print key observations and statistics during execution
-    - Follow a logical step-by-step approach to data analysis
-    - Use appropriate libraries (pandas, matplotlib, seaborn, etc.) effectively
-    - Ensure all visualizations have proper axes labels, titles, and legends where appropriate
-    """,
-    agent=data_analysis_agent,
-    expected_output="""The output should be in JSON format with keys as 'response' and 'created_charts'. The value for 'response' should be the detailed analysis with key findings and insights, the value for 'created_charts' should be a list of filenames of charts that you generated (if any)"""
-)
+    1. Load the structured data extracted by the file data extraction agent
+    2. Clean and structure the data, including:
+       - Ensuring uniform column naming
+       - Handling missing values appropriately
+       - Converting unstructured data into structured format (if necessary)
+    3. Generate a CSV file with the structured data
+    4. Output only the CSV file, without additional summaries or explanations
 
-
-data_processing_task = Task(
-    description="""Your task is to process and transform the data extracted by the preparation agent into a format optimized for analysis.
-    
-    Process steps:
-    1. Load the extracted data provided by the data preparation agent
-    2. Understand what exact data transformations are needed based on the analysis requirements
-    3. Perform necessary data cleaning, including:
-       - Handling missing values
-       - Converting data types
-       - Normalizing or scaling values if needed
-       - Filtering out irrelevant records
-       - Creating derived features if beneficial
-    4. Reshape the data if needed (pivot, melt, etc.)
-    5. Document all transformations performed
-    6. Provide the processed data in a format that can be directly used by the analysis agent
-    
-    Code quality requirements:
-    - Use proper error handling with try-except blocks
-    - Include clear comments explaining each transformation step
-    - Print summaries of the data before and after processing
-    - Use efficient methods for data transformation
-    - Document any assumptions made during processing
-    
     The user query is: {user_query}
     """,
-    agent=dataset_processor_agent,
-    expected_output="""A processed dataset with the following information:
-    1. The processed data in a suitable format
-    2. Documentation of all transformations applied
-    3. Summary statistics of the processed data
-    4. Any relevant insights or issues discovered during processing"""
+    agent=csv_file_processor_agent,
+    expected_output="""A CSV file containing:
+    1. Structured data extracted from the file
+    2. Properly formatted column names
+    3. No additional text or explanation, just the CSV file"""
 )
 
-data_analysis_crew = Crew(
-    agents=[data_preparation_agent,dataset_processor_agent, data_analysis_agent],
-    tasks=[data_preparation_task, data_processing_task, data_analysis_task],
+# Create the file processing crew
+file_processing_crew = Crew(
+    agents=[file_data_extraction_agent, csv_file_processor_agent],
+    tasks=[file_data_extraction_task, csv_file_processing_task],
     verbose=True
 )
 
-
-
-
-
+# Internet Search Agent - Collects data from the web
 internet_search_agent = Agent(
     llm=llm,
     role="Internet Research Specialist",
     goal="Gather relevant data and information from the internet based on user queries",
-    backstory="""You are an expert internet researcher who excels at finding and extracting relevant information from online sources.
-    You understand how to interpret user needs and find the most appropriate data to answer their questions.""",
+    backstory="""You are an expert internet researcher skilled at finding and extracting relevant information from online sources.
+    You analyze user queries to determine what specific information is needed and retrieve structured and unstructured data from reliable sources.""",
     allow_code_execution=False,
     tools=[internet_search_tool]
 )
 
-# Create the internet search task
+# Task for Internet Search Agent
 internet_search_task = Task(
     description="""Your task is to search the internet for data and information relevant to the user's query.
     
     Process:
-    1. Carefully analyze the user query to determine what specific information is needed
-    2. Formulate effective search queries to find the most relevant information
-    3. Collect and organize the data from search results
-    4. Ensure the data collected is:
+    1. Analyze the user query to determine the specific data required
+    2. Formulate effective search queries to retrieve the most relevant information
+    3. Collect and organize the retrieved data in a structured format
+    4. Ensure the collected data is:
        - Relevant to the user's query
-       - Comprehensive enough for analysis
-       - From reliable sources when possible
-       - Properly structured for further processing
-    5. Document the sources of the information
-    
+       - Structured when possible
+       - From reliable sources
+       - Ready for CSV conversion
+    5. Provide the raw data to the data processing agent
+
     The user query is: {user_query}
     """,
     agent=internet_search_agent,
-    expected_output="""Collected data and information related to the user query, including:
-    1. The raw data or information found
+    expected_output="""Collected data related to the user's query, including:
+    1. The raw data in a structured or semi-structured format
     2. Sources of the information
-    3. Any context necessary for understanding the data
-    4. Notes on reliability or potential biases in the sources"""
+    3. Any context necessary for understanding the data"""
 )
 
-# Create a data processor agent (same as before but adapted for internet search data)
-internet_data_processor_agent = Agent(
+# CSV Data Processor Agent - Converts collected data into a CSV file
+csv_data_processor_agent = Agent(
     llm=llm,
-    role="Data Processor",
-    goal="Transform and prepare internet search data for analysis by generating processed datasets that can be directly used for analysis and visualization.",
-    backstory="""You are a specialized data processing expert who excels at transforming raw internet data into analysis-ready formats.
-    You understand data structures deeply and can efficiently clean, transform, and restructure data to make the analyst's job easier.
-    Your expertise is in creating intermediate data representations that are optimized for specific analysis tasks.""",
-    allow_code_execution=True,
-    tools=[CodeInterpreterTool(unsafe_mode=True)]
+    role="CSV Data Processor",
+    goal="Transform internet search data into a structured CSV file.",
+    backstory="""You are an expert in data processing and transformation. Your main responsibility is to take the collected raw data 
+    and convert it into a well-structured CSV file. You ensure that the output is clean, organized, and properly formatted for analysis.""",
 )
 
-# Create the data processing task for internet search results
-internet_data_processing_task = Task(
-    description="""Your task is to process and transform the data collected from internet searches into a format optimized for analysis.
+# Task for CSV Data Processor Agent
+csv_data_processing_task = Task(
+    description="""Your task is to process the data collected from internet searches and output it as a CSV file.
     
     Process steps:
-    1. Load the raw data provided by the internet research agent
-    2. Understand what exact data transformations are needed based on the analysis requirements
-    3. Perform necessary data cleaning, including:
-       - Converting unstructured text to structured data when needed
-       - Handling missing values
-       - Converting data types
-       - Normalizing or scaling values if needed
-       - Filtering out irrelevant information
-       - Creating derived features if beneficial
-    4. Reshape the data if needed (pivot, melt, etc.)
-    5. Document all transformations performed
-    6. Provide the processed data in a format that can be directly used by the analysis agent
-    
-    Code quality requirements:
-    - Use proper error handling with try-except blocks
-    - Include clear comments explaining each transformation step
-    - Print summaries of the data before and after processing
-    - Use efficient methods for data transformation
-    - Document any assumptions made during processing
-    
+    1. Load the raw data from the internet research agent
+    2. Clean and structure the data, including:
+       - Ensuring uniform column naming
+       - Handling missing values appropriately
+       - Converting unstructured data into structured format (if necessary)
+    3. Generate a CSV file with the structured data
+    4. Output only the CSV file, without additional summaries or explanations
+
     The user query is: {user_query}
     """,
-    agent=internet_data_processor_agent,
-    expected_output="""A processed dataset with the following information:
-    1. The processed data in a suitable format
-    2. Documentation of all transformations applied
-    3. Summary statistics of the processed data
-    4. Any relevant insights or issues discovered during processing"""
+    agent=csv_data_processor_agent,
+    expected_output="""A CSV file containing:
+    1. Structured data from the internet search
+    2. Properly formatted column names
+    3. No additional text or explanation, just the CSV file"""
 )
 
-# Create the data analysis agent (same as before)
-internet_data_analysis_agent = Agent(
-    llm=llm,
-    role="Data Analyst",
-    goal="Perform comprehensive data analysis and create visualizations based on processed data using well-structured code.",
-    backstory="""A proficient data analyst capable of executing Python code to analyze data and generate insightful visualizations.
-    You follow best practices for code structure, error handling, and documentation while delivering clear insights.""",
-    allow_code_execution=True,
-    tools=[CodeInterpreterTool(unsafe_mode=True)]
-)
 
-# Create the data analysis task
-internet_data_analysis_task = Task(
-    description="""Your task is to act as an experienced data analyst who helps users with their queries.
-    
-    First steps for every query:
-    1. Carefully analyze what the user is requesting:
-       - Data analysis only
-       - Data analysis with visualizations
-       - Primarily visualizations
-    
-    Process steps:
-    1. Load and validate the processed data using proper error handling with try-except blocks
-    2. Perform any additional data cleaning or transformation needed
-    3. Conduct the requested analysis with meaningful comments and printed observations
-    4. If visualizations are requested:
-       - Create appropriate visualizations with proper labels, titles, and formatting
-       - Save visualizations to {charts_folder} with descriptive names including a random 8-digit identifier
-       - Provide insightful analysis of what the visualizations reveal
-    
-    Code quality requirements:
-    - Use proper error handling with try-except blocks
-    - Include clear comments explaining major steps
-    - Print key observations and statistics during execution
-    - Follow a logical step-by-step approach to data analysis
-    - Use appropriate libraries (pandas, matplotlib, seaborn, etc.) effectively
-    - Ensure all visualizations have proper axes labels, titles, and legends where appropriate
-    
-    The user query is: {user_query}
-    """,
-    agent=internet_data_analysis_agent,
-    expected_output="""The output should be in JSON format with keys as 'response' and 'created_charts'. The value for 'response' should be the detailed analysis with key findings and insights, the value for 'created_charts' should be a list of filenames of charts that you generated (if any)"""
-)
 
 # Create the internet search and analysis crew
 internet_search_analysis_crew = Crew(
-    agents=[internet_search_agent, internet_data_processor_agent, internet_data_analysis_agent],
-    tasks=[internet_search_task, internet_data_processing_task, internet_data_analysis_task],
+    agents=[internet_search_agent, csv_data_processor_agent],
+    tasks=[internet_search_task, csv_data_processing_task],
     verbose=True
 )
 
@@ -596,6 +492,31 @@ async def upload_file(project_id: str = Form(...), file: UploadFile = File(...))
     return file_info
 
 
+def extract_csv_content(text):
+    """
+    Extracts CSV content surrounded by ```csv and ``` markers from a string.
+    
+    Args:
+        text (str): The input string containing CSV content marked with ```csv and ``` tags
+    
+    Returns:
+        str: The extracted CSV content or empty string if no match found
+    """
+    import re
+    
+    # Define pattern to match content between ```csv and ``` markers
+    pattern = r"```csv\s*(.*?)\s*```"
+    
+    # Search for the pattern with re.DOTALL flag to match across multiple lines
+    match = re.search(pattern, text, re.DOTALL)
+    
+    # Return the matched content or empty string if no match
+    if match:
+        return match.group(1)
+    else:
+        return ""
+
+
 
 class ChatRequest(BaseModel):
     project_id: str
@@ -656,33 +577,68 @@ async def chat(request: ChatRequest):
     
     if file_extension in ["csv", "xlsx"]:
         # Process CSV or XLSX files
-        response = dataset_data_analysis_crew.kickoff({
-            'user_query': request.user_query,
-            'file_path': file_path,
-            "charts_folder":charts_folder
-        })
-    elif file_extension in ["pdf", "txt", "docx"]:
-        # Process PDF, TXT, or DOCX files
-        file_content = read_file_content(file_path)
-        response = data_analysis_crew.kickoff({
-            'user_query': request.user_query,
-            'file_content': file_content,
-            "charts_folder": charts_folder
-        })
-
-    # elif file_extension =="":
-        
-    else:
-        print("CALLING INTERNET CREW........")
-        response = internet_search_analysis_crew.kickoff({"user_query": request.user_query, "charts_folder": charts_folder})
-        # response = {"message": f"Unsupported file type: {file_extension}"}
+        if file_extension == "csv":
+            df = pd.read_csv(file_path)
+        elif file_extension =="xlsx":
+            df = pd.read_excel(file_path)
     
+    elif file_extension in ["pdf", "txt", "docx"]:
+            print("""Entering ["pdf", "txt", "docx"] Block""")
+            file_content = file_processing_crew.kickoff({"user_query": request.user_query, "file_content": read_file_content(file_path)})
+            formatted_csv_content = extract_csv_content(str(file_content.raw))
+            df = pd.read_csv(io.StringIO(formatted_csv_content))
 
+
+    else:
+        print("Entering FILE EXTENSION '' BLOCK.")
+        internet_content = internet_search_analysis_crew.kickoff({"user_query": request.user_query})
+        formatted_csv_content = extract_csv_content(str(internet_content.raw))
+        df = pd.read_csv(io.StringIO(formatted_csv_content))
+
+
+
+
+    print(df.head())
+
+    agent_executor = create_pandas_dataframe_agent(
+    llm_model,
+    df,
+    # extra_tools=,
+    # agent_type="tool-calling",
+    allow_dangerous_code= True,
+    verbose=True
+)
+        
+    response = agent_executor.invoke(data_analysis_prompt(request.user_query, charts_folder))
+    print(response)
+        # response = dataset_data_analysis_crew.kickoff({
+        #     'user_query': request.user_query,
+        #     'file_path': file_path,
+        #     "charts_folder":charts_folder
+        # })
+    # elif file_extension in ["pdf", "txt", "docx"]:
+    #     # Process PDF, TXT, or DOCX files
+    #     file_content = read_file_content(file_path)
+    #     response = data_analysis_crew.kickoff({
+    #         'user_query': request.user_query,
+    #         'file_content': file_content,
+    #         "charts_folder": charts_folder
+    #     })
+
+    # # elif file_extension =="":
+        
+    # else:
+    #     print("CALLING INTERNET CREW........")
+    #     response = internet_search_analysis_crew.kickoff({"user_query": request.user_query, "charts_folder": charts_folder})
+    #     # response = {"message": f"Unsupported file type: {file_extension}"}
+    
+    print(response['output'])
 
     response = {
         "filename": file_name,
         "user_query": request.user_query,
-        "response": response.raw
+        # "response": response.raw
+        "response": response['output']
     }
 
     # Update the project's uploaded_files in MongoDB

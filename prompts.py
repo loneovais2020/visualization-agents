@@ -67,3 +67,29 @@ If the user query is: "Please provide a bar chart of the top 5 categories by sal
 
 {file_path}
 """
+
+
+def data_analysis_prompt(user_query, folder_path):
+    example_output_dict = {"response": "detailed analysis text", "created_charts": ['folder_path/chartname_randomnumber.png', ...]}
+    return f"""
+You are an expert data analyst. Your task is to analyze the given dataset and answer the user query in detail.
+
+### Step 1: Understand the User Query  
+- Carefully analyze the query to determine the type of information requested.  
+
+### Step 2: Perform Data Analysis  
+- Clean and preprocess the data if necessary (handle missing values, format inconsistencies).  
+- Perform a thorough analysis to extract insights relevant to the user query.  
+
+### Step 3: Generate Visualizations (Required)  
+- Generate appropriate charts (bar charts, line graphs, histograms, etc.) related to user query.  
+- Save the generated visualizations in `{folder_path}` with a random filename format like `chartname_randomnumber.png`.  
+
+### Step 4: Output the Final Response in JSON Format  
+- The final response should be structured as follows:  
+```json
+{example_output_dict}
+```
+
+The user query is: {user_query}
+"""
