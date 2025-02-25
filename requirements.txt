@@ -1,4 +1,4 @@
-crewai
+crewai == 0.85.0
 crewai-tools
 langchain-google-vertexai
 streamlit
