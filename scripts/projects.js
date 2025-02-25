@@ -46,11 +46,79 @@ async function deleteProject(projectId, projectName) {
     }
 }
 
-function renameProject(projectId, currentName) {
+async function renameProject(projectId, currentName) {
+    const token = localStorage.getItem("access_token");
+    const BASE_URL = "http://127.0.0.1:8000";
+
     const newName = prompt("Enter new project name:", currentName);
-    if (newName && newName !== currentName) {
-        // TODO: Implement rename functionality
-        alert("Rename functionality coming soon!");
+    if (!newName || newName === currentName) {
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('new_name', newName);
+
+        const response = await fetch(`${BASE_URL}/project/${projectId}/rename`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (response.status === 401) {
+            alert("Session expired. Please log in again.");
+            localStorage.removeItem("access_token");
+            window.location.href = "login.html";
+            return;
+        }
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || 'Failed to rename project');
+        }
+
+        // Show success message
+        const toastEl = document.getElementById('projectToast');
+        const toast = new bootstrap.Toast(toastEl);
+        
+        if (result.warning) {
+            // Partial success case
+            toastEl.querySelector('.toast-body').innerHTML = `
+                <div class="text-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${result.warning}
+                </div>
+            `;
+        } else {
+            // Complete success case
+            toastEl.querySelector('.toast-body').innerHTML = `
+                <div class="text-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Project renamed successfully to "${newName}"
+                </div>
+            `;
+        }
+        toast.show();
+
+        // Refresh the projects list
+        location.reload();
+
+    } catch (error) {
+        console.error('Error renaming project:', error);
+        
+        // Show error message
+        const toastEl = document.getElementById('projectToast');
+        const toast = new bootstrap.Toast(toastEl);
+        toastEl.querySelector('.toast-body').innerHTML = `
+            <div class="text-danger">
+                <i class="fas fa-times-circle me-2"></i>
+                Failed to rename project: ${error.message}
+            </div>
+        `;
+        toast.show();
     }
 }
 

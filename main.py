@@ -855,3 +855,99 @@ async def delete_project(project_id: str, current_user: dict = Depends(get_curre
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}")
+
+# Add this new endpoint
+@app.put("/project/{project_id}/rename")
+async def rename_project(
+    project_id: str, 
+    new_name: str = Form(...), 
+    current_user: dict = Depends(get_current_user)
+):
+    # Check if project exists and belongs to user
+    project = projects_collection.find_one({
+        "project_id": project_id,
+        "user_id": current_user["user_id"]
+    })
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if user already has a project with the new name
+    existing_project = projects_collection.find_one({
+        "project_name": new_name,
+        "user_id": current_user["user_id"],
+        "project_id": {"$ne": project_id}  # Exclude current project
+    })
+    
+    if existing_project:
+        raise HTTPException(
+            status_code=400, 
+            detail="You already have a project with this name. Please choose a different name."
+        )
+    
+    try:
+        old_dir = os.path.join(FILES_DIR, f"{project['project_name']}_{project_id}")
+        new_dir = os.path.join(FILES_DIR, f"{new_name}_{project_id}")
+        
+        # First update the MongoDB document
+        result = projects_collection.update_one(
+            {
+                "project_id": project_id,
+                "user_id": current_user["user_id"]
+            },
+            {"$set": {"project_name": new_name}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Then try to rename the directory if it exists
+        if os.path.exists(old_dir):
+            try:
+                # Try to force close any open files (Windows specific)
+                import gc
+                gc.collect()  # Force garbage collection
+                
+                # If directory exists, try to rename it
+                if os.path.exists(new_dir):
+                    # If target directory already exists, merge contents
+                    for item in os.listdir(old_dir):
+                        old_item = os.path.join(old_dir, item)
+                        new_item = os.path.join(new_dir, item)
+                        if os.path.isdir(old_item):
+                            shutil.copytree(old_item, new_item, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(old_item, new_item)
+                    shutil.rmtree(old_dir)
+                else:
+                    # If target directory doesn't exist, try to rename
+                    shutil.move(old_dir, new_dir)
+                
+            except Exception as e:
+                # If directory rename fails, log it but don't fail the request
+                print(f"Warning: Failed to rename directory: {str(e)}")
+                # The MongoDB update was successful, so we'll return success
+                # but include a warning in the response
+                return {
+                    "message": "Project renamed partially",
+                    "new_name": new_name,
+                    "warning": "Database updated but directory rename failed. Please close any open files and try again."
+                }
+            
+        return {"message": "Project renamed successfully", "new_name": new_name}
+        
+    except Exception as e:
+        # If MongoDB update failed, revert everything
+        if result and result.modified_count > 0:
+            try:
+                # Revert MongoDB change
+                projects_collection.update_one(
+                    {"project_id": project_id},
+                    {"$set": {"project_name": project["project_name"]}}
+                )
+            except:
+                pass
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to rename project: {str(e)}"
+        )

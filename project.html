@@ -207,18 +207,18 @@
                 localStorage.removeItem("access_token");
                 window.location.href = "login.html";
             });
-            
-            // Fetch project data from backend
-            async function loadProjectData() {
-                const urlParams = new URLSearchParams(window.location.search);
+
+        // Fetch project data from backend
+        async function loadProjectData() {
+            const urlParams = new URLSearchParams(window.location.search);
                 const projectId = urlParams.get("id"); // Get project_id from URL
                 currentProjectId = projectId;
                 
-                if (!projectId) {
-                    alert("Project ID not found in URL");
+            if (!projectId) {
+                alert("Project ID not found in URL");
                     window.location.href = "projects.html";
-                    return;
-                }
+                return;
+            }
 
                 try {
                     const response = await fetch(`${BASE_URL}/project/${projectId}`, {
