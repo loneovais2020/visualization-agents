@@ -10,6 +10,10 @@ import io
 from crewai import Agent, Task, Crew, LLM
 from crewai_tools import CodeInterpreterTool, SerperDevTool
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+import json
+from fastapi.staticfiles import StaticFiles
+
 load_dotenv()
 
 
@@ -307,6 +311,20 @@ def is_allowed_file(filename: str) -> bool:
 
 app = FastAPI()
 
+
+
+app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5500"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+
+
 # MongoDB connection
 client = MongoClient("mongodb+srv://loneovais2019:cmZIilbGCgyqoZPc@dev.gvpfh.mongodb.net/")
 db = client["project_db"]
@@ -416,6 +434,63 @@ def extract_csv_content(text):
         return match.group(1)
     else:
         return ""
+    
+def extract_json_content(text):
+    """
+    Extracts JSON content surrounded by ```json and ``` markers from a string
+    and converts it to a Python dictionary. If no markers are found, attempts
+    to convert the entire string to a dictionary.
+    
+    Args:
+        text (str): The input string containing JSON content (with or without markers)
+    
+    Returns:
+        dict: The extracted JSON content converted to a dictionary, or empty dict if conversion fails
+    """
+    import re
+    import json
+    import ast
+    
+    print(f"Input text: {text}")
+    
+    # Check if the text is wrapped in ```json and ``` markers
+    if text.strip().startswith("```json") and text.strip().endswith("```"):
+        print("Detected JSON code block markers")
+        
+        # Define pattern to match content between ```json and ``` markers
+        pattern = r"```json\s*(.*?)\s*```"
+        
+        # Search for the pattern with re.DOTALL flag to match across multiple lines
+        match = re.search(pattern, text, re.DOTALL)
+        
+        # Process the matched content
+        if match:
+            json_str = match.group(1)
+            print(f"Extracted content: {json_str}")
+        else:
+            print("Failed to extract content with regex")
+            return {}
+    else:
+        print("No JSON code block markers found, treating entire text as JSON/dict")
+        json_str = text
+    
+    # Try to convert to dict
+    try:
+        # First try regular JSON parsing
+        result = json.loads(json_str)
+        print(f"Successfully parsed with json.loads(): {result}")
+        return result
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")
+        try:
+            # If JSON parsing fails, try evaluating as Python literal
+            result = ast.literal_eval(json_str)
+            print(f"Successfully parsed with ast.literal_eval(): {result}")
+            return result
+        except (SyntaxError, ValueError) as e:
+            print(f"Python literal evaluation error: {e}")
+            # Return empty dict if both methods fail
+            return {}
 
 
 
@@ -489,27 +564,47 @@ async def chat(request: ChatRequest):
     # extra_tools=,
     # agent_type="tool-calling",
     allow_dangerous_code= True,
+    handle_parsing_errors=True,
     verbose=True
 )
         
     response = agent_executor.invoke(data_analysis_prompt(request.user_query, charts_folder))
-    # print(response)
-    print(response['output'])
+    
+    # Extract just the text response from the output
+    response_text = response['output']
+    
+    # Get charts from the created_charts folder
+    created_charts = []
+    if os.path.exists(charts_folder):
+        created_charts = [os.path.join(charts_folder, f) for f in os.listdir(charts_folder) 
+                         if os.path.isfile(os.path.join(charts_folder, f))]
+        
 
-    response = {
-        "filename": file_name,
-        "user_query": request.user_query,
-        # "response": response.raw
-        "response": response['output']
-    }
+    print(f"Raw response from model is: {response_text}")
 
-    # Update the project's uploaded_files in MongoDB
+    
+    # Try to extract JSON content
+    json_content = extract_json_content(response_text)
+    print(f"json content is {json_content}")
+
+
+    response_data = {
+            "user_query": request.user_query,
+            "response": {
+                "response": json_content["response"],
+                "created_charts": json_content["created_charts"]
+            }
+        }
+    
+    print("Response data:", response_data)
+    
+    # Update the project's chat_history in MongoDB
     projects_collection.update_one(
         {"project_id": request.project_id},
-        {"$push": {"chat_history": response}}
+        {"$push": {"chat_history": response_data}}
     )
 
-    return response
+    return response_data
 
 
 class ProjectModel(BaseModel):
@@ -520,19 +615,46 @@ class ProjectModel(BaseModel):
     chat_history: List[dict] = []
     user_id: str
 
+import json
 
+# Define a function to get the project's charts directory
+def get_project_charts_dir(project_name: str, project_id: str) -> str:
+    return os.path.join(FILES_DIR, f"{project_name}_{project_id}", "created_charts")
 
-@app.get("/project/{project_id}", response_model=ProjectModel)
+# Mount static files for each project's charts directory
+@app.get("/project/{project_id}")
 async def get_project(project_id: str):
-    # Retrieve the project from MongoDB
     project = projects_collection.find_one({"project_id": project_id})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
-    
-    # Convert ObjectId to string if present
+
+    # Convert ObjectId to string
     if "_id" in project:
         project["_id"] = str(project["_id"])
-    
+
+    # Ensure consistent response format in chat history
+    if "chat_history" in project:
+        for chat in project["chat_history"]:
+            # If response is a string that looks like a JSON object
+            if isinstance(chat.get("response"), str):
+                try:
+                    # Try to parse it as JSON
+                    chat["response"] = json.loads(chat["response"].replace("'", "\""))
+                except json.JSONDecodeError:
+                    pass
+            
+            # Ensure created_charts exists and update paths to relative URLs
+            if isinstance(chat.get("response"), dict):
+                if "created_charts" not in chat["response"]:
+                    chat["response"]["created_charts"] = []
+                else:
+                    # Convert absolute paths to relative URLs
+                    charts = []
+                    for chart_path in chat["response"]["created_charts"]:
+                        filename = os.path.basename(chart_path)
+                        charts.append(filename)
+                    chat["response"]["created_charts"] = charts
+
     return project
 
 
@@ -602,7 +724,9 @@ async def signup(user: UserSignup):
         "password": hashed_password,
         "is_verified": False
     }
+    print(new_user)
     users_collection.insert_one(new_user)
+    print("user registered successfully......")
     return {"message": "User registered successfully"}
 
 # Login endpoint
@@ -624,3 +748,63 @@ async def login(user: UserLogin):
     # Create JWT token
     access_token = create_access_token(data={"sub": existing_user["email"]})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+
+# Pydantic Model for Response
+class ProjectResponse(BaseModel):
+    project_name: str
+    project_id: str
+    user_id: str
+    creation_time: str  # Assuming stored as ISO format string
+
+
+
+from fastapi.security import OAuth2PasswordBearer
+
+
+
+# Define OAuth2 scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Function to decode JWT and get current user
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+        if not user_email:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        # Fetch user from MongoDB based on email
+        user = users_collection.find_one({"email": user_email}, {"_id": 0, "user_id": 1, "email": 1})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+from datetime import datetime
+
+@app.get("/projects", response_model=List[ProjectResponse])
+async def get_user_projects(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["user_id"]  # Extract user ID from authenticated user
+
+    projects = list(projects_collection.find(
+        {"user_id": user_id},
+        {"_id": 0, "project_name": 1, "project_id": 1, "user_id": 1, "creation_time": 1}
+    ))
+
+    if not projects:
+        raise HTTPException(status_code=404, detail="No projects found for this user.")
+
+    # Convert creation_time to ISO format if it exists
+    for project in projects:
+        if "creation_time" in project and isinstance(project["creation_time"], datetime):
+            project["creation_time"] = project["creation_time"].isoformat()
+
+    return projects
+
+# Mount the static files directory at the end of the file
+charts_path = os.path.join(FILES_DIR)
+app.mount("/static", StaticFiles(directory=charts_path), name="static")

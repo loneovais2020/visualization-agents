@@ -1,3 +1,4 @@
+from uuid import uuid4
 def file_summary_generation_prompt(content):
     prompt = f"""
 
@@ -70,7 +71,8 @@ If the user query is: "Please provide a bar chart of the top 5 categories by sal
 
 
 def data_analysis_prompt(user_query, folder_path):
-    example_output_dict = {"response": "detailed analysis text", "created_charts": ['folder_path/chartname_randomnumber.png', ...]}
+    file_name = f"{str(uuid4())}.png"
+    example_output_dict = {"response": "detailed analysis text", "created_charts": ['folder_path/file_name', ...]}
     return f"""
 You are an expert data analyst. Your task is to analyze the given dataset and answer the user query in detail.
 
@@ -83,9 +85,10 @@ You are an expert data analyst. Your task is to analyze the given dataset and an
 
 ### Step 3: Generate Visualizations (Required)  
 - Generate appropriate charts (bar charts, line graphs, histograms, etc.) related to user query.  
-- Save the generated visualizations in `{folder_path}` with a random filename format like `chartname_randomnumber.png`.  
+- Save the generated visualizations in `{folder_path}` with filename {file_name}.  
 
 ### Step 4: Output the Final Response in JSON Format  
+- Always return the final output json in ```json```.
 - The final response should be structured as follows:  
 ```json
 {example_output_dict}
