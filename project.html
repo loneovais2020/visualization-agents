@@ -236,6 +236,17 @@
                         return;
                     }
 
+                    // Add handling for 404 error
+                    if (response.status === 404) {
+                        alert("Project not found");
+                        window.location.href = "projects.html";
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
                     projectData = await response.json();
                     
                     // Set project title
@@ -284,7 +295,15 @@
                     }
                 } catch (error) {
                     console.error("Error loading project data:", error);
-                    alert("Failed to load project data. Please try again.");
+                    // Don't recursively call loadProjectData here
+                    // Instead, show an error message to the user
+                    $("#project-title").text("Error Loading Project");
+                    $("#query-list").html(`
+                        <div class="alert alert-danger">
+                            Failed to load project data. 
+                            <a href="projects.html" class="alert-link">Return to projects</a>
+                        </div>
+                    `);
                 }
             }
             
@@ -587,14 +606,19 @@
                             <strong>Summary:</strong><br>
                             ${result.summary}
                         </div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-primary" onclick="window.location.reload()">
+                                <i class="fas fa-sync-alt me-1"></i> Refresh to see changes
+                            </button>
+                        </div>
                     `;
                     toast.show();
 
                     // Clear the file input
                     this.value = '';
-
-                    // Reload project data to update file list
-                    await loadProjectData();
+                    
+                    // Don't automatically reload the data
+                    // Let the user click the refresh button instead
 
                 } catch (error) {
                     console.error('Error uploading file:', error);
