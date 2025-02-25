@@ -378,6 +378,18 @@ async def upload_file(project_id: str = Form(...), file: UploadFile = File(...))
     if not is_allowed_file(file.filename):
         raise HTTPException(status_code=400, detail="File type not allowed.")
     
+    # Check if file already exists in project's uploaded_files
+    if project.get("uploaded_files"):
+        for existing_file in project["uploaded_files"]:
+            if existing_file["filename"] == file.filename:
+                raise HTTPException(
+                    status_code=400, 
+                    detail={
+                        "message": "File already exists",
+                        "filename": file.filename
+                    }
+                )
+    
     # Define the path to save the uploaded file
     project_dir = os.path.join(FILES_DIR, f"{project['project_name']}_{project_id}", "uploaded_files")
     os.makedirs(project_dir, exist_ok=True)
@@ -697,7 +709,7 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
+    to_encode = data.copy()  # This will now include both 'sub' and 'user_id'
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
@@ -745,8 +757,13 @@ async def login(user: UserLogin):
     if not verify_password(user.password, existing_user["password"]):
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
-    # Create JWT token
-    access_token = create_access_token(data={"sub": existing_user["email"]})
+    # Create JWT token - Modify this part to include user_id
+    access_token = create_access_token(
+        data={
+            "sub": existing_user["email"],
+            "user_id": existing_user["user_id"]  # Add user_id to token payload
+        }
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
 

@@ -6,6 +6,7 @@
     <title>Project Details</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -111,9 +112,38 @@
         .input-group .btn {
             border-radius: 0 20px 20px 0;
         }
+        
+        .input-group label.btn {
+            margin: 0;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        
+        .input-group label.btn:hover {
+            background-color: #5a6268;
+            border-color: #545b62;
+        }
+        
+        .input-group label.btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.65;
+        }
     </style>
 </head>
 <body>
+    <!-- Add toast container at the top of body -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="fileUploadToast" class="toast" role="alert" aria-live="polite" aria-atomic="true" data-bs-delay="10000">
+            <div class="toast-header">
+                <strong class="me-auto">File Upload Success</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                <!-- Summary will be inserted here -->
+            </div>
+        </div>
+    </div>
+
     <nav class="navbar navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="projects.html">
@@ -144,6 +174,14 @@
             <div class="chat-input">
                 <div class="input-group">
                     <input type="text" class="form-control" id="query-input" placeholder="Ask a question about your data...">
+                    <!-- File upload button -->
+                    <label class="btn btn-secondary" for="fileUpload" style="position: relative; overflow: hidden;">
+                        <i class="fas fa-file-upload"></i>
+                        <input type="file" 
+                               id="fileUpload" 
+                               style="position: absolute; opacity: 0; right: 0; top: 0; cursor: pointer;"
+                               accept=".xlsx,.csv,.txt,.pdf,.docx">
+                    </label>
                     <button class="btn btn-primary" id="send-query">
                         <i class="fas fa-paper-plane"></i>
                     </button>
@@ -155,10 +193,13 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function() {
-            // Get token from local storage
             const token = localStorage.getItem("access_token");
+            const BASE_URL = "http://127.0.0.1:8000"; // Add BASE_URL definition
+            let currentProjectId = null;
+            let projectData = null;
+
             if (!token) {
-                window.location.href = "login.html"; // Redirect if not logged in
+                window.location.href = "login.html";
             }
 
             // Logout function
@@ -167,22 +208,17 @@
                 window.location.href = "login.html";
             });
             
-            let currentProjectId = null;
-            let projectData = null;
-
-            const BASE_URL = "http://127.0.0.1:8000"; // FastAPI backend URL
-
-        // Fetch project data from backend
-        async function loadProjectData() {
-            const urlParams = new URLSearchParams(window.location.search);
+            // Fetch project data from backend
+            async function loadProjectData() {
+                const urlParams = new URLSearchParams(window.location.search);
                 const projectId = urlParams.get("id"); // Get project_id from URL
                 currentProjectId = projectId;
                 
-            if (!projectId) {
-                alert("Project ID not found in URL");
+                if (!projectId) {
+                    alert("Project ID not found in URL");
                     window.location.href = "projects.html";
-                return;
-            }
+                    return;
+                }
 
                 try {
                     const response = await fetch(`${BASE_URL}/project/${projectId}`, {
@@ -468,7 +504,162 @@
 
             // Load project data when page loads
             loadProjectData();
+
+            // Initialize all toasts
+            var toastElList = [].slice.call(document.querySelectorAll('.toast'));
+            var toastList = toastElList.map(function(toastEl) {
+                return new bootstrap.Toast(toastEl, {
+                    autohide: true,
+                    delay: 10000 // 10 seconds
+                });
+            });
+
+            // File upload handling
+            $("#fileUpload").on("change", async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // Check file extension
+                const allowedExtensions = ['xlsx', 'csv', 'txt', 'pdf', 'docx'];
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+                
+                if (!allowedExtensions.includes(fileExtension)) {
+                    alert('Invalid file type. Allowed types: xlsx, csv, txt, pdf, docx');
+                    this.value = ''; // Clear the input
+                    return;
+                }
+
+                // Create FormData
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('project_id', currentProjectId);
+
+                // Show loading state
+                const uploadLabel = $(this).parent();
+                const originalContent = uploadLabel.html();
+                uploadLabel.html('<i class="fas fa-spinner fa-spin"></i>');
+                uploadLabel.prop('disabled', true);
+
+                try {
+                    const response = await fetch(`${BASE_URL}/upload-file/`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    // Reset upload button state
+                    uploadLabel.html(originalContent);
+                    uploadLabel.prop('disabled', false);
+
+                    if (!response.ok) {
+                        // Handle file already exists error
+                        if (response.status === 400 && result.detail?.message === "File already exists") {
+                            const toastEl = document.getElementById('fileUploadToast');
+                            const toast = new bootstrap.Toast(toastEl);
+                            toastEl.querySelector('.toast-header strong').textContent = 'File Already Exists';
+                            toastEl.querySelector('.toast-body').innerHTML = `
+                                <div class="text-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    The file "${result.detail.filename}" has already been uploaded to this project.
+                                </div>
+                            `;
+                            toast.show();
+                            this.value = '';
+                            return;
+                        }
+                        throw new Error(result.detail?.message || 'Upload failed');
+                    }
+
+                    // Show success toast with file summary
+                    const toastEl = document.getElementById('fileUploadToast');
+                    const toast = new bootstrap.Toast(toastEl);
+                    toastEl.querySelector('.toast-header strong').textContent = 'File Upload Success';
+                    toastEl.querySelector('.toast-body').innerHTML = `
+                        <div class="text-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>${result.filename}</strong> uploaded successfully!
+                        </div>
+                        <div class="mt-2">
+                            <strong>Summary:</strong><br>
+                            ${result.summary}
+                        </div>
+                    `;
+                    toast.show();
+
+                    // Clear the file input
+                    this.value = '';
+
+                    // Reload project data to update file list
+                    await loadProjectData();
+
+                } catch (error) {
+                    console.error('Error uploading file:', error);
+                    
+                    // Show error toast
+                    const toastEl = document.getElementById('fileUploadToast');
+                    const toast = new bootstrap.Toast(toastEl);
+                    toastEl.querySelector('.toast-header strong').textContent = 'Upload Error';
+                    toastEl.querySelector('.toast-body').innerHTML = `
+                        <div class="text-danger">
+                            <i class="fas fa-times-circle me-2"></i>
+                            <strong>Error uploading ${file.name}:</strong><br>
+                            ${error.message}
+                        </div>
+                    `;
+                    toast.show();
+
+                    // Reset the upload button
+                    uploadLabel.html(originalContent);
+                    uploadLabel.prop('disabled', false);
+                    this.value = '';
+                }
+            });
         });
+
+        // Add this debug function at the start of your script
+        async function debugFetch(url, options) {
+            try {
+                console.log('Making request to:', url);
+                console.log('With options:', {
+                    ...options,
+                    body: options.body instanceof FormData ? 
+                          'FormData: ' + Array.from(options.body.entries()).map(([k,v]) => 
+                              `${k}: ${v instanceof File ? v.name : v}`).join(', ') : 
+                          options.body
+                });
+
+                const response = await fetch(url, options);
+                const text = await response.text();
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                console.log('Response text:', text);
+                
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Parsed response data:', data);
+                    return { 
+                        ok: response.ok,
+                        status: response.status,
+                        data: data
+                    };
+                } catch (e) {
+                    console.error('Error parsing JSON response:', e);
+                    return {
+                        ok: response.ok,
+                        status: response.status,
+                        data: text
+                    };
+                }
+            } catch (error) {
+                console.error('Network error:', error);
+                throw error;
+            }
+        }
     </script>
 </body>
 </html>
