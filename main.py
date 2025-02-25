@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 import json
 from fastapi.staticfiles import StaticFiles
+import shutil
 
 load_dotenv()
 
@@ -311,17 +312,15 @@ def is_allowed_file(filename: str) -> bool:
 
 app = FastAPI()
 
-
-
-app = FastAPI()
-
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5500"],
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_origins=["http://127.0.0.1:5500"],  # Frontend URL
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly list allowed methods
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 
@@ -825,3 +824,34 @@ async def get_user_projects(current_user: dict = Depends(get_current_user)):
 # Mount the static files directory at the end of the file
 charts_path = os.path.join(FILES_DIR)
 app.mount("/static", StaticFiles(directory=charts_path), name="static")
+
+@app.delete("/project/{project_id}")
+async def delete_project(project_id: str, current_user: dict = Depends(get_current_user)):
+    # Check if project exists and belongs to user
+    project = projects_collection.find_one({
+        "project_id": project_id,
+        "user_id": current_user["user_id"]
+    })
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    try:
+        # Delete project folder and all its contents
+        project_dir = os.path.join(FILES_DIR, f"{project['project_name']}_{project_id}")
+        if os.path.exists(project_dir):
+            shutil.rmtree(project_dir)
+        
+        # Delete project from MongoDB
+        result = projects_collection.delete_one({
+            "project_id": project_id,
+            "user_id": current_user["user_id"]
+        })
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Project not found")
+            
+        return {"message": "Project deleted successfully"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}")

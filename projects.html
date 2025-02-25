@@ -16,6 +16,24 @@
         .card {
             transition: all 0.2s ease-in-out;
         }
+        
+        .dropdown-toggle::after {
+            display: none;
+        }
+        
+        .project-card {
+            position: relative;
+        }
+        
+        .project-menu {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        
+        .project-menu .btn {
+            padding: 0.25rem 0.5rem;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -69,5 +87,18 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="scripts/projects.js"></script>
+
+    <!-- Add this after the navbar -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="projectToast" class="toast" role="alert" aria-live="polite" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header">
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                <!-- Message will be inserted here -->
+            </div>
+        </div>
+    </div>
 </body>
 </html>

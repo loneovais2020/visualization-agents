@@ -1,3 +1,59 @@
+// Move these functions outside of $(document).ready()
+async function deleteProject(projectId, projectName) {
+    const token = localStorage.getItem("access_token");
+    const BASE_URL = "http://127.0.0.1:8000";
+
+    if (!confirm(`Are you sure you want to delete "${projectName}"? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${BASE_URL}/project/${projectId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.status === 401) {
+            alert("Session expired. Please log in again.");
+            localStorage.removeItem("access_token");
+            window.location.href = "login.html";
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error('Failed to delete project');
+        }
+
+        // Show success message
+        const toastEl = document.getElementById('projectToast');
+        const toast = new bootstrap.Toast(toastEl);
+        toastEl.querySelector('.toast-body').innerHTML = `
+            <div class="text-success">
+                <i class="fas fa-check-circle me-2"></i>
+                Project "${projectName}" deleted successfully
+            </div>
+        `;
+        toast.show();
+
+        // Refresh projects list
+        location.reload();
+
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        alert('Failed to delete project. Please try again.');
+    }
+}
+
+function renameProject(projectId, currentName) {
+    const newName = prompt("Enter new project name:", currentName);
+    if (newName && newName !== currentName) {
+        // TODO: Implement rename functionality
+        alert("Rename functionality coming soon!");
+    }
+}
+
 $(document).ready(function () {
     const token = localStorage.getItem("access_token"); // Get token from local storage
     const BASE_URL = "http://127.0.0.1:8000";
@@ -114,7 +170,26 @@ $(document).ready(function () {
             const creationDate = new Date(project.creation_time).toLocaleString();
             projectHTML += `
                 <div class="col-md-4 mb-4">
-                    <div class="card h-100 shadow-sm hover-shadow">
+                    <div class="card h-100 shadow-sm hover-shadow position-relative">
+                        <!-- Add three-dot menu -->
+                        <div class="project-menu dropdown">
+                            <button class="btn btn-link text-dark" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="renameProject('${project.project_id}', '${project.project_name}')">
+                                        <i class="fas fa-edit me-2"></i>Rename
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item text-danger" href="#" onclick="deleteProject('${project.project_id}', '${project.project_name}')">
+                                        <i class="fas fa-trash-alt me-2"></i>Delete
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        
                         <div class="card-body">
                             <h5 class="card-title text-primary">${project.project_name}</h5>
                             <p class="card-text">
