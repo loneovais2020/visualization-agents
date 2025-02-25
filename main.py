@@ -137,106 +137,6 @@ file_selection_crew = Crew(
 )
 
 
-
-
-
-
-
-
-
-# New Data Processing Agent
-# dataset_processor_agent = Agent(
-#     llm=llm,
-#     role="Data Processor",
-#     goal="Transform and prepare data for analysis by generating processed datasets that can be directly used for analysis and visualization.",
-#     backstory="""You are a specialized data processing expert who excels at transforming raw data into analysis-ready formats.
-#     You understand data structures deeply and can efficiently clean, transform, and restructure data to make the analyst's job easier.
-#     Your expertise is in creating intermediate data representations that are optimized for specific analysis tasks.""",
-#     allow_code_execution=True,
-#     tools=[CodeInterpreterTool(unsafe_mode=True)]
-# )
-
-# # New Data Processing Task
-# dataset_processing_task = Task(
-#     description="""Your task is to process and transform the extracted data into a format that's optimized for the specific analysis needed.
-    
-#     Process steps:
-#     1. Load the raw data using proper error handling with try-except blocks
-#     2. Understand what exact data transformations are needed based on the analysis requirements
-#     3. Perform necessary data cleaning, including:
-#        - Handling missing values
-#        - Converting data types
-#        - Normalizing or scaling values if needed
-#        - Filtering out irrelevant records
-#        - Creating derived features if beneficial
-#     4. Reshape the data if needed (pivot, melt, etc.)
-#     5. Document all transformations performed
-#     6. Provide the processed data in a format that can be directly used by the analysis agent
-    
-#     Code quality requirements:
-#     - Use proper error handling with try-except blocks
-#     - Include clear comments explaining each transformation step
-#     - Print summaries of the data before and after processing
-#     - Use efficient methods for data transformation
-#     - Document any assumptions made during processing
-    
-#     The user query is: {user_query}
-#     The raw data is located at: {file_path}
-#     """,
-#     agent=dataset_processor_agent,
-#     expected_output="""A processed dataset with the following information:
-#     1. The processed data in a suitable format
-#     2. Documentation of all transformations applied
-#     3. Summary statistics of the processed data
-#     4. Any relevant insights or issues discovered during processing"""
-# )
-
-# dataset_data_analysis_crew = Crew(
-#     agents=[dataset_processor_agent, dataset_analyst_agent],
-#     tasks=[dataset_processing_task, dataset_data_analysis_task],
-#     verbose= True
-# )
-
-
-# data_preparation_agent = Agent(
-#     llm=llm,
-#     role="Data Preparation Specialist",
-#     goal="Interpret user queries and extract relevant data from provided file content with careful consideration of requirements.",
-#     backstory="""An expert in data extraction and preparation, skilled at understanding user requirements and processing raw data accordingly.
-#     You excel at interpreting the nuances of data requests and preparing exactly what's needed for analysis.""",
-#     allow_code_execution=False
-# )
-
-# data_preparation_task = Task(
-#     description="""Interpret the user query and extract the necessary data from the provided file content.
-    
-#     Process:
-#     1. Carefully analyze the user query to understand:
-#        - What specific data elements are needed
-#        - What transformations might be required
-#        - Whether the query requires analysis, visualization, or both
-    
-#     2. Extract and structure the relevant data from the file content
-    
-#     The user query is: {user_query}
-#     The file content is: {file_content}""",
-#     agent=data_preparation_agent,
-#     expected_output="Processed data ready for analysis with clear structure and documentation of any transformations performed."
-# )
-
-
-
-
-# data_analysis_crew = Crew(
-#     agents=[data_preparation_agent,dataset_processor_agent],
-#     tasks=[data_preparation_task, data_preparation_task],
-#     verbose=True
-# )
-
-
-
-
-
 # File Data Extraction Agent - Extracts relevant data from the file content
 file_data_extraction_agent = Agent(
     llm=llm,
@@ -411,6 +311,7 @@ app = FastAPI()
 client = MongoClient("mongodb+srv://loneovais2019:cmZIilbGCgyqoZPc@dev.gvpfh.mongodb.net/")
 db = client["project_db"]
 projects_collection = db["projects"]
+users_collection = db["users"]
 
 # Directory to save uploaded files
 BASE_DIR = os.getcwd()
@@ -545,27 +446,9 @@ async def chat(request: ChatRequest):
     print(type(file_name))
     print(file_name)
     print("----------------------------------------")
-    
-    # if not file_name:
-
-        # return {"message": "No file available for this query."}
 
 
-    # if file_name == "":
-    #     print("CALLING INTERNET CREW........")
-    #     response = internet_search_analysis_crew.kickoff({"user_query": request.user_query})
 
-    # else:
-
-        
-        
-        
-        # for filename in files_to_use:
-        #     filename = filename[1]
-        #     print("----------------------------------------")
-        #     print(type(filename))
-        #     print(filename)
-        #     print("----------------------------------------")
     file_extension = file_name.rsplit('.', 1)[-1].lower()
     print("----------------------------------------")
     print(f"File extension is {file_extension}")
@@ -610,28 +493,7 @@ async def chat(request: ChatRequest):
 )
         
     response = agent_executor.invoke(data_analysis_prompt(request.user_query, charts_folder))
-    print(response)
-        # response = dataset_data_analysis_crew.kickoff({
-        #     'user_query': request.user_query,
-        #     'file_path': file_path,
-        #     "charts_folder":charts_folder
-        # })
-    # elif file_extension in ["pdf", "txt", "docx"]:
-    #     # Process PDF, TXT, or DOCX files
-    #     file_content = read_file_content(file_path)
-    #     response = data_analysis_crew.kickoff({
-    #         'user_query': request.user_query,
-    #         'file_content': file_content,
-    #         "charts_folder": charts_folder
-    #     })
-
-    # # elif file_extension =="":
-        
-    # else:
-    #     print("CALLING INTERNET CREW........")
-    #     response = internet_search_analysis_crew.kickoff({"user_query": request.user_query, "charts_folder": charts_folder})
-    #     # response = {"message": f"Unsupported file type: {file_extension}"}
-    
+    # print(response)
     print(response['output'])
 
     response = {
@@ -672,3 +534,93 @@ async def get_project(project_id: str):
         project["_id"] = str(project["_id"])
     
     return project
+
+
+
+
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel, EmailStr
+from pymongo import MongoClient
+from bson import ObjectId
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+
+
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# JWT settings
+SECRET_KEY = "my secret key is very hard to crack."
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_DAYS = 3
+
+# Pydantic models
+class UserSignup(BaseModel):
+    full_name: str
+    phone_number: str
+    email: EmailStr
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+# Utility functions
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+# Signup endpoint
+@app.post("/signup")
+async def signup(user: UserSignup):
+    # Check if user already exists
+    existing_user = users_collection.find_one({"email": user.email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Create new user
+    hashed_password = get_password_hash(user.password)
+    new_user = {
+        "full_name": user.full_name,
+        "user_id" : str(uuid4()),
+        "phone_number": user.phone_number,
+        "email": user.email,
+        "password": hashed_password,
+        "is_verified": False
+    }
+    users_collection.insert_one(new_user)
+    return {"message": "User registered successfully"}
+
+# Login endpoint
+@app.post("/login")
+async def login(user: UserLogin):
+    # Check if user exists
+    existing_user = users_collection.find_one({"email": user.email})
+    if not existing_user:
+        raise HTTPException(status_code=400, detail="Invalid email or password")
+
+    # Check if user is verified
+    if not existing_user.get("is_verified"):
+        raise HTTPException(status_code=400, detail="User is not verified")
+
+    # Verify password
+    if not verify_password(user.password, existing_user["password"]):
+        raise HTTPException(status_code=400, detail="Invalid email or password")
+
+    # Create JWT token
+    access_token = create_access_token(data={"sub": existing_user["email"]})
+    return {"access_token": access_token, "token_type": "bearer"}
