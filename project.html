@@ -182,13 +182,74 @@
             transform: translateY(-2px);
         }
         
+        .toast-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1060;
+            min-width: 350px;
+        }
+        
         .toast {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            box-shadow: var(--shadow-lg);
-            animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            border: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .toast.show {
+            opacity: 1;
+        }
+        
+        .toast-header {
+            border-radius: 12px 12px 0 0;
+            padding: 0.75rem 1rem;
+        }
+        
+        .toast-body {
+            padding: 1rem;
+            border-radius: 0 0 12px 12px;
+        }
+        
+        .toast .btn-light {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: inherit;
+            transition: all 0.2s ease;
+        }
+        
+        .toast .btn-light:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .status-icon {
+            font-size: 1.1rem;
+        }
+        
+        .toast .btn-close {
+            opacity: 0.8;
+            transition: all 0.2s ease;
+        }
+        
+        .toast .btn-close:hover {
+            opacity: 1;
+            transform: rotate(90deg);
+        }
+        
+        .toast.bg-success {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+        
+        .toast.bg-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+        
+        .toast.bg-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
         }
         
         @media (max-width: 768px) {
@@ -226,6 +287,61 @@
         #downloadChartBtn:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
+        }
+        
+        .message .file-summary {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-top: 0.5rem;
+        }
+        
+        .message .file-summary strong {
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .query-item .fas {
+            font-size: 1rem;
+            width: 1.5rem;
+            text-align: center;
+        }
+        
+        .query-item .fa-file-excel {
+            color: #217346;
+        }
+        
+        .query-item .fa-file-pdf {
+            color: #ff0000;
+        }
+        
+        .query-item .fa-file-word {
+            color: #2b579a;
+        }
+        
+        .query-item .fa-file-alt {
+            color: #6c757d;
+        }
+        
+        .query-item .fa-file-csv {
+            color: #217346;
+        }
+        
+        .query-item .fa-comment {
+            color: var(--primary-color);
+        }
+        
+        .message .fas {
+            font-size: 1.1rem;
+        }
+        
+        .user-message .fas {
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .assistant-message .file-summary {
+            border-left: 3px solid var(--primary-color);
         }
     </style>
 </head>
@@ -271,12 +387,13 @@
         </div>
     </div>
 
-    <!-- Modern Toast -->
+    <!-- Modern Toast Container -->
     <div class="toast-container position-fixed top-0 end-0 p-4">
-        <div id="fileUploadToast" class="toast" role="alert" aria-live="polite" aria-atomic="true">
-            <div class="toast-header border-0">
-                <strong class="me-auto">File Upload</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        <div id="fileUploadToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <i class="status-icon me-2"></i>
+                <strong class="me-auto"></strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
             <div class="toast-body"></div>
         </div>
@@ -370,7 +487,47 @@
                 
                 // Add user message
                 const userMessage = $("<div>").addClass("message-container user-container");
-                const userBubble = $("<div>").addClass("message user-message").text(chat.user_query);
+                const userBubble = $("<div>").addClass("message user-message");
+                
+                // Check if this is a file upload message
+                if (chat.user_query.startsWith('[FILE]')) {
+                    const fileName = chat.user_query.substring(6); // Remove [FILE] prefix
+                    const fileExtension = fileName.split('.').pop().toLowerCase();
+                    
+                    // Get appropriate icon based on file type
+                    let fileIcon = '';
+                    switch (fileExtension) {
+                        case 'xlsx':
+                        case 'xls':
+                            fileIcon = 'fa-file-excel';
+                            break;
+                        case 'pdf':
+                            fileIcon = 'fa-file-pdf';
+                            break;
+                        case 'docx':
+                        case 'doc':
+                            fileIcon = 'fa-file-word';
+                            break;
+                        case 'txt':
+                            fileIcon = 'fa-file-alt';
+                            break;
+                        case 'csv':
+                            fileIcon = 'fa-file-csv';
+                            break;
+                        default:
+                            fileIcon = 'fa-file';
+                    }
+                    
+                    userBubble.html(`
+                        <div class="d-flex align-items-center">
+                            <i class="fas ${fileIcon} me-2"></i>
+                            <span>${fileName}</span>
+                        </div>
+                    `);
+                } else {
+                    userBubble.text(chat.user_query);
+                }
+                
                 const userTime = $("<div>").addClass("message-time")
                     .text(formatDate(chat.timestamp));
                 userBubble.append(userTime);
@@ -382,8 +539,19 @@
                 const messageBubble = $("<div>").addClass("message assistant-message");
                 
                 // Extract response text
-                let responseText = chat.response.response || '';
-                messageBubble.text(responseText);
+                let responseText = '';
+                if (chat.response.type === 'file_upload') {
+                    responseText = chat.response.response; // File summary
+                    messageBubble.html(`
+                        <div class="file-summary">
+                            <strong>File Summary:</strong><br>
+                            ${responseText}
+                        </div>
+                    `);
+                } else {
+                    responseText = chat.response.response || '';
+                    messageBubble.text(responseText);
+                }
                 
                 const assistantTime = $("<div>").addClass("message-time")
                     .text(formatDate(chat.timestamp));
@@ -640,15 +808,36 @@
                         throw new Error(result.detail?.message || 'Upload failed');
                     }
 
+                    // Add file to chat history
+                    try {
+                        await fetch(`${BASE_URL}/chat/`, {
+                            method: "POST",
+                            headers: {
+                                "Authorization": `Bearer ${token}`,
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                project_id: currentProjectId,
+                                user_query: `[FILE]${file.name}`,  // Special prefix to identify file uploads
+                                response: {
+                                    response: result.summary,
+                                    type: 'file_upload'
+                                }
+                            })
+                        });
+                    } catch (error) {
+                        console.error('Error adding file to chat history:', error);
+                    }
+
                     // Show success toast
                     showToast('File Upload Success', 'success', `
-                        <strong>${result.filename}</strong> uploaded successfully!<br>
-                        <div class="mt-2">
+                        <div class="mb-2"><strong>${result.filename}</strong> uploaded successfully!</div>
+                        <div class="mb-2">
                             <strong>Summary:</strong><br>
                             ${result.summary}
                         </div>
-                        <div class="mt-2">
-                            <button class="btn btn-sm btn-primary" onclick="window.location.reload()">
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-light" onclick="window.location.reload()">
                                 <i class="fas fa-sync-alt me-1"></i> Refresh to see changes
                             </button>
                         </div>
@@ -668,15 +857,55 @@
             // Helper function to show toasts
             function showToast(title, type, message) {
                 const toastEl = document.getElementById('fileUploadToast');
-                const toast = new bootstrap.Toast(toastEl);
+                
+                // Initialize toast with Bootstrap
+                const toast = bootstrap.Toast.getOrCreateInstance(toastEl, {
+                    animation: true,
+                    autohide: true,
+                    delay: 5000
+                });
+
+                // Set toast classes based on type
+                toastEl.className = 'toast show border-0';
+                
+                // Add background color class
+                if (type === 'success') {
+                    toastEl.classList.add('bg-success', 'text-white');
+                } else if (type === 'warning') {
+                    toastEl.classList.add('bg-warning');
+                } else if (type === 'danger') {
+                    toastEl.classList.add('bg-danger', 'text-white');
+                }
+
+                // Update header
+                const header = toastEl.querySelector('.toast-header');
+                header.className = 'toast-header border-0 ' + 
+                    (type === 'warning' ? 'bg-warning' : type === 'success' ? 'bg-success text-white' : 'bg-danger text-white');
+
+                // Update icon
+                const icon = toastEl.querySelector('.status-icon');
+                icon.className = 'status-icon fas ' + 
+                    (type === 'success' ? 'fa-check-circle' : 
+                     type === 'warning' ? 'fa-exclamation-triangle' : 
+                     'fa-times-circle') + ' me-2';
+
+                // Update title
                 toastEl.querySelector('.toast-header strong').textContent = title;
-                toastEl.querySelector('.toast-body').innerHTML = `
-                    <div class="text-${type}">
-                        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'times-circle'} me-2"></i>
-                        ${message}
-                    </div>
-                `;
+
+                // Update body
+                const bodyDiv = toastEl.querySelector('.toast-body');
+                bodyDiv.className = 'toast-body ' + (type === 'warning' ? '' : 'text-white');
+                bodyDiv.innerHTML = message;
+
+                // Show the toast
                 toast.show();
+
+                // Handle refresh behavior
+                if (type === 'success' && !message.includes('Refresh to see changes')) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                }
             }
 
             // Load project data when page loads
@@ -730,14 +959,53 @@
                     if (projectData.chat_history && projectData.chat_history.length > 0) {
                         // Populate sidebar with queries
                         projectData.chat_history.forEach((chat, index) => {
-                            const queryText = chat.user_query.length > 30 
-                                ? chat.user_query.substring(0, 30) + "..." 
-                                : chat.user_query;
+                            let queryText = '';
+                            let icon = '';
+                            
+                            if (chat.user_query.startsWith('[FILE]')) {
+                                const fileName = chat.user_query.substring(6);
+                                const fileExtension = fileName.split('.').pop().toLowerCase();
                                 
+                                // Get appropriate icon based on file type
+                                switch (fileExtension) {
+                                    case 'xlsx':
+                                    case 'xls':
+                                        icon = 'fa-file-excel';
+                                        break;
+                                    case 'pdf':
+                                        icon = 'fa-file-pdf';
+                                        break;
+                                    case 'docx':
+                                    case 'doc':
+                                        icon = 'fa-file-word';
+                                        break;
+                                    case 'txt':
+                                        icon = 'fa-file-alt';
+                                        break;
+                                    case 'csv':
+                                        icon = 'fa-file-csv';
+                                        break;
+                                    default:
+                                        icon = 'fa-file';
+                                }
+                                
+                                queryText = fileName;
+                            } else {
+                                queryText = chat.user_query.length > 30 
+                                    ? chat.user_query.substring(0, 30) + "..." 
+                                    : chat.user_query;
+                                icon = 'fa-comment';
+                            }
+                            
                             const queryDiv = $("<div>")
                                 .addClass("query-item")
                                 .attr("data-index", index)
-                                .text(queryText)
+                                .html(`
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas ${icon} me-2"></i>
+                                        <span>${queryText}</span>
+                                    </div>
+                                `)
                                 .on("click", function() {
                                     $(".query-item").removeClass("active");
                                     $(this).addClass("active");
@@ -769,15 +1037,6 @@
                     `);
                 }
             }
-
-            // Initialize toasts
-            var toastElList = [].slice.call(document.querySelectorAll('.toast'));
-            var toastList = toastElList.map(function(toastEl) {
-                return new bootstrap.Toast(toastEl, {
-                    autohide: true,
-                    delay: 10000
-                });
-            });
 
             // Start loading the project data
             loadProjectData();

@@ -418,6 +418,21 @@ async def upload_file(project_id: str = Form(...), file: UploadFile = File(...))
         {"project_id": project_id},
         {"$push": {"uploaded_files": file_info}}
     )
+
+    # Add file upload entry to chat history
+    chat_entry = {
+        "user_query": f"[FILE]{file.filename}",
+        "response": {
+            "response": summary.content,
+            "created_charts": []
+        }
+    }
+
+    # Update the project's chat_history in MongoDB
+    projects_collection.update_one(
+        {"project_id": project_id},
+        {"$push": {"chat_history": chat_entry}}
+    )
     
     return file_info
 
