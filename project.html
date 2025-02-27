@@ -401,6 +401,43 @@
         .user-message .markdown-content pre {
             background-color: rgba(255, 255, 255, 0.1);
         }
+
+        /* Loading Animation Styles */
+        .typing-indicator {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            opacity: 0.6;
+            animation: typingAnimation 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typingAnimation {
+            0%, 100% {
+                transform: translateY(0);
+                opacity: 0.6;
+            }
+            50% {
+                transform: translateY(-4px);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -572,12 +609,12 @@
                 
                 return markdownPatterns.some(pattern => pattern.test(content));
             }
-
+            
             // Display a conversation in the chat history
             function displayConversation(conversation) {
                 const chatHistory = $("#chat-history");
                 chatHistory.empty();
-
+                
                 conversation.forEach(entry => {
                     if (entry.user_query.startsWith('[FILE]')) {
                         // Handle file upload messages
@@ -623,30 +660,30 @@
 
                         if (entry.response) {
                             const assistantContainer = $("<div>").addClass("message-container assistant-container");
-                            const messageBubble = $("<div>").addClass("message assistant-message");
-                            
+                const messageBubble = $("<div>").addClass("message assistant-message");
+                
                             const responseText = entry.response.response || '';
                             if (looksLikeMarkdown(responseText)) {
                                 const markdownWrapper = $("<div>").addClass("markdown-content")
                                     .html(renderMarkdown(responseText));
                                 messageBubble.append(markdownWrapper);
                             } else {
-                                messageBubble.text(responseText);
+                messageBubble.text(responseText);
                             }
 
                             // Handle charts if present
                             if (entry.response.created_charts && entry.response.created_charts.length > 0) {
                                 const chartsContainer = $("<div>").addClass("charts-container mt-3");
                                 entry.response.created_charts.forEach(chartPath => {
-                                    // Get the project folder name
+                        // Get the project folder name
                                     const projectFolder = `${currentProjectName}_${currentProjectId}`;
-                                    
+                        
                                     // Construct the full URL for the image
-                                    const imageUrl = `${BASE_URL}/static/${projectFolder}/created_charts/${chartPath}`;
-                                    
+                        const imageUrl = `${BASE_URL}/static/${projectFolder}/created_charts/${chartPath}`;
+                        
                                     const chartImg = $("<img>")
-                                        .addClass("chart-image")
-                                        .attr("src", imageUrl)
+                            .addClass("chart-image")
+                            .attr("src", imageUrl)
                                         .attr("alt", "Generated Chart")
                                         .on("click", function() {
                                             // Update modal image and download button
@@ -658,7 +695,7 @@
                                             new bootstrap.Modal(document.getElementById('chartModal')).show();
                                         })
                                         .on("error", function() {
-                                            console.error("Failed to load image:", imageUrl);
+                            console.error("Failed to load image:", imageUrl);
                                             $(this).after(`
                                                 <div class="alert alert-danger d-flex align-items-center p-3 rounded-3 shadow-sm">
                                                     <i class="fas fa-exclamation-circle fa-2x me-3"></i>
@@ -684,11 +721,11 @@
                         }
                     }
                 });
-
+                
                 // Scroll to bottom
                 chatHistory.scrollTop(chatHistory[0].scrollHeight);
             }
-
+            
             // Helper function to get appropriate file icon
             function getFileIcon(filename) {
                 const ext = filename.split('.').pop().toLowerCase();
@@ -717,11 +754,36 @@
                 
                 if (!query) return;
                 
-                // Clear input
-                queryInput.val("");
+                // Clear input and disable it
+                queryInput.val("").prop("disabled", true);
+                $("#send-query").prop("disabled", true);
+                
+                // Add user message immediately
+                const chatHistory = $("#chat-history");
+                const userMessage = $("<div>").addClass("message-container user-container");
+                const userBubble = $("<div>").addClass("message user-message").text(query);
+                const userTime = $("<div>").addClass("message-time")
+                    .text(formatDate(new Date()));
+                userBubble.append(userTime);
+                userMessage.append(userBubble);
+                chatHistory.append(userMessage);
+
+                // Add loading message immediately
+                const loadingMessage = $("<div>").addClass("message-container assistant-container");
+                const loadingContent = $("<div>").addClass("message assistant-message");
+                const typingIndicator = $("<div>").addClass("typing-indicator")
+                    .append($("<div>").addClass("typing-dot"))
+                    .append($("<div>").addClass("typing-dot"))
+                    .append($("<div>").addClass("typing-dot"));
+                loadingContent.append(typingIndicator);
+                loadingMessage.append(loadingContent);
+                chatHistory.append(loadingMessage);
+                
+                // Scroll to bottom
+                chatHistory.scrollTop(chatHistory[0].scrollHeight);
                 
                 try {
-                    // Send query to backend first to get the timestamp
+                    // Send query to backend
                     const response = await fetch(`${BASE_URL}/chat/`, {
                         method: "POST",
                         headers: {
@@ -743,45 +805,22 @@
                     
                     const result = await response.json();
                     
-                    // Add user message with timestamp from response
-                    const chatHistory = $("#chat-history");
-                    const userMessage = $("<div>").addClass("message-container user-container");
-                    const userBubble = $("<div>").addClass("message user-message").text(query);
-                    const userTime = $("<div>").addClass("message-time")
-                        .text(formatDate(result.timestamp));
-                    userBubble.append(userTime);
-                    userMessage.append(userBubble);
-                    chatHistory.append(userMessage);
-                    
-                    // Add loading message
-                    const loadingMessage = $("<div>").addClass("message-container assistant-container");
-                    const loadingContent = $("<div>").addClass("message assistant-message");
-                    const typingIndicator = $("<div>").addClass("typing-indicator")
-                        .append($("<div>").addClass("typing-dot"))
-                        .append($("<div>").addClass("typing-dot"))
-                        .append($("<div>").addClass("typing-dot"));
-                    loadingContent.append(typingIndicator);
-                    loadingMessage.append(loadingContent);
-                    chatHistory.append(loadingMessage);
-                    
-                    // Scroll to bottom
-                    chatHistory.scrollTop(chatHistory[0].scrollHeight);
+                    // Update user message timestamp with server time
+                    userTime.text(formatDate(result.timestamp));
                     
                     // Remove loading message
                     loadingMessage.remove();
                     
-                    // Update assistant response creation
+                    // Add assistant response
                     const assistantMessage = $("<div>").addClass("message-container assistant-container");
                     const messageBubble = $("<div>").addClass("message assistant-message");
                     
                     const responseText = result.response.response || '';
-                    // Check if response looks like markdown
                     if (looksLikeMarkdown(responseText)) {
                         const markdownWrapper = $("<div>").addClass("markdown-content")
                             .html(renderMarkdown(responseText));
                         messageBubble.append(markdownWrapper);
                     } else {
-                        // For non-markdown content, use text() to properly escape HTML
                         messageBubble.text(responseText);
                     }
                     
@@ -791,15 +830,12 @@
                     assistantMessage.append(messageBubble);
                     chatHistory.append(assistantMessage);
                     
-                    // Handle charts
+                    // Handle charts if present
                     if (result.response.created_charts && result.response.created_charts.length > 0) {
                         const chartsContainer = $("<div>").addClass("charts-container");
                         
                         result.response.created_charts.forEach(chartPath => {
-                            // Get the project folder name
                             const projectFolder = `${currentProjectName}_${currentProjectId}`;
-                            
-                            // Construct the full URL for the image
                             const imageUrl = `${BASE_URL}/static/${projectFolder}/created_charts/${chartPath}`;
                             
                             const img = $("<img>")
@@ -807,12 +843,9 @@
                                 .attr("src", imageUrl)
                                 .attr("alt", "Chart")
                                 .on("click", function() {
-                                    // Update modal image and download button
                                     $("#modalChartImage").attr("src", imageUrl);
                                     $("#downloadChartBtn").attr("href", imageUrl);
                                     $("#downloadChartBtn").attr("download", chartPath);
-                                    
-                                    // Show modal
                                     new bootstrap.Modal(document.getElementById('chartModal')).show();
                                 });
                             
@@ -836,12 +869,6 @@
                         chatHistory.append(chartsContainer);
                     }
                     
-                    // Scroll to bottom
-                    chatHistory.scrollTop(chatHistory[0].scrollHeight);
-                    
-                    // Reload project data to update sidebar
-                    loadProjectData();
-                    
                 } catch (error) {
                     console.error("Error sending query:", error);
                     
@@ -857,8 +884,16 @@
                     errorMessage.append(errorContent);
                     chatHistory.append(errorMessage);
                     
+                } finally {
+                    // Re-enable input and button
+                    queryInput.prop("disabled", false);
+                    $("#send-query").prop("disabled", false);
+                    
                     // Scroll to bottom
                     chatHistory.scrollTop(chatHistory[0].scrollHeight);
+                    
+                    // Reload project data to update sidebar
+                    loadProjectData();
                 }
             }
 
@@ -1111,8 +1146,8 @@
                                 <p>Start by asking a question or uploading a file below.</p>
                             </div>
                         `);
-                    }
-                } catch (error) {
+                }
+            } catch (error) {
                     console.error("Error loading project data:", error);
                     $("#project-title").text("Error Loading Project");
                     $("#chat-history").html(`

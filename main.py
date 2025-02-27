@@ -558,9 +558,11 @@ async def chat(request: ChatRequest):
     
     # Ensure charts directory exists
     os.makedirs(charts_folder, exist_ok=True)
-    
+
+        
     # Extract file extension if a file was selected
     file_extension = file_name.split('.')[-1].lower() if file_name else ''
+    
     
     if file_extension in ["csv", "xlsx"]:
         # Process CSV or XLSX files
@@ -568,6 +570,7 @@ async def chat(request: ChatRequest):
             df = pd.read_csv(file_path)
         elif file_extension =="xlsx":
             df = pd.read_excel(file_path)
+    
     elif file_extension in ["pdf", "txt", "docx"]:
         print("""Entering ["pdf", "txt", "docx"] Block""")
         file_content = file_processing_crew.kickoff({"user_query": request.user_query, "file_content": read_file_content(file_path)})
