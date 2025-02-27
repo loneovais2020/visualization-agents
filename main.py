@@ -524,6 +524,10 @@ class ChatRequest(BaseModel):
     project_id: str
     user_query: str
 
+
+def _handle_error(error) -> str:
+    return str(error)[:50]
+
 @app.post("/chat/")
 async def chat(request: ChatRequest):
     # Retrieve project details from MongoDB
@@ -590,7 +594,7 @@ async def chat(request: ChatRequest):
     # extra_tools=,
     # agent_type="tool-calling",
     allow_dangerous_code= True,
-    handle_parsing_errors=True,
+    handle_parsing_errors=_handle_error,
     verbose=True
 )
         
