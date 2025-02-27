@@ -237,17 +237,16 @@ $(document).ready(function () {
         projects.forEach(project => {
             const creationDate = new Date(project.creation_time).toLocaleString();
             projectHTML += `
-                <div class="col-md-4 mb-4">
-                    <div class="card h-100 shadow-sm hover-shadow position-relative">
-                        <!-- Add three-dot menu -->
+                <div class="col-md-4">
+                    <div class="card project-card shadow-sm hover-shadow">
                         <div class="project-menu dropdown">
-                            <button class="btn btn-link text-dark" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <button class="btn btn-light btn-sm rounded-circle" type="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-ellipsis-v"></i>
                             </button>
-                            <ul class="dropdown-menu">
+                            <ul class="dropdown-menu dropdown-menu-end">
                                 <li>
                                     <a class="dropdown-item" href="#" onclick="renameProject('${project.project_id}', '${project.project_name}')">
-                                        <i class="fas fa-edit me-2"></i>Rename
+                                        <i class="fas fa-edit me-2 text-primary"></i>Rename
                                     </a>
                                 </li>
                                 <li>
@@ -257,17 +256,14 @@ $(document).ready(function () {
                                 </li>
                             </ul>
                         </div>
-                        
-                        <div class="card-body">
-                            <h5 class="card-title text-primary">${project.project_name}</h5>
-                            <p class="card-text">
-                                <small class="text-muted">Created: ${creationDate}</small>
+                        <div class="card-body p-4">
+                            <h5 class="project-title mb-2">${project.project_name}</h5>
+                            <p class="project-date mb-4">
+                                <i class="far fa-calendar-alt me-2"></i>${creationDate}
                             </p>
-                            <div class="d-grid">
-                                <button class="btn btn-primary" onclick="window.location.href='project.html?id=${project.project_id}'">
-                                    <i class="fas fa-folder-open me-2"></i>Open Project
-                                </button>
-                            </div>
+                            <button class="btn btn-primary btn-open w-100" onclick="window.location.href='project.html?id=${project.project_id}'">
+                                <i class="fas fa-folder-open me-2"></i>Open Project
+                            </button>
                         </div>
                     </div>
                 </div>

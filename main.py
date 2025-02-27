@@ -33,7 +33,7 @@ model="vertex_ai/gemini-2.0-flash-001", temperature=0.9
 
 
 
-llm_model = ChatVertexAI(model_name= "gemini-1.5-flash-001")
+llm_model = ChatVertexAI(model_name= "gemini-2.0-flash-001")
 
 
 

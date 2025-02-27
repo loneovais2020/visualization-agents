@@ -3,38 +3,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up</title>
+    <title>Sign Up - Project Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles/main.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            min-height: 100vh;
+        }
+
+        .auth-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .auth-title {
+            color: #1e293b;
+            font-weight: 700;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .auth-subtitle {
+            color: #64748b;
+            font-size: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-floating > .form-control {
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            padding: 1rem 0.75rem;
+            height: calc(3.5rem + 2px);
+            font-size: 1rem;
+        }
+
+        .form-floating > .form-control:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
+        .form-floating > label {
+            padding: 1rem 0.75rem;
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            border: none;
+            border-radius: 12px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+        }
+
+        .login-link {
+            color: #4f46e5;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s ease;
+        }
+
+        .login-link:hover {
+            color: #4338ca;
+        }
+
+        .auth-footer {
+            color: #64748b;
+        }
+
+        .brand-logo {
+            font-size: 2.5rem;
+            color: #4f46e5;
+            margin-bottom: 1.5rem;
+        }
+
+        .toast {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
 <body>
-    <div class="container d-flex justify-content-center align-items-center vh-100">
-        <div class="card p-4 shadow-lg" style="width: 100%; max-width: 400px;">
-            <h2 class="text-center mb-4">Sign Up</h2>
-            <form id="signupForm">
-                <div class="form-floating mb-3">
-                    <input type="text" class="form-control" id="fullName" placeholder="Full Name" required>
-                    <label for="fullName">Full Name</label>
+    <div class="container">
+        <div class="row min-vh-100 align-items-center justify-content-center">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+                <div class="card p-4 p-sm-5 fade-in">
+                    <div class="text-center">
+                        <div class="mb-4">
+                            <i class="fas fa-project-diagram fa-3x text-gradient"></i>
+                        </div>
+                        <h1 class="h3 mb-4">Create Account</h1>
+                    </div>
+                    
+                    <form id="signupForm">
+                        <div class="mb-4">
+                            <div class="form-floating">
+                                <input type="text" class="form-control" id="fullName" placeholder="Full Name" required>
+                                <label for="fullName">
+                                    <i class="far fa-user me-2"></i>Full Name
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-floating">
+                                <input type="tel" class="form-control" id="phoneNumber" placeholder="Phone Number" required>
+                                <label for="phoneNumber">
+                                    <i class="fas fa-phone me-2"></i>Phone Number
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="form-floating">
+                                <input type="email" class="form-control" id="signupEmail" placeholder="name@example.com" required>
+                                <label for="signupEmail">
+                                    <i class="far fa-envelope me-2"></i>Email Address
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="form-floating">
+                                <input type="password" class="form-control" id="signupPassword" placeholder="Password" required>
+                                <label for="signupPassword">
+                                    <i class="fas fa-lock me-2"></i>Password
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 mb-4">
+                            <i class="fas fa-user-plus me-2"></i>Create Account
+                        </button>
+                        
+                        <p class="text-center auth-footer mb-0">
+                            Already have an account? 
+                            <a href="login.html" class="login-link">Sign In</a>
+                        </p>
+                    </form>
                 </div>
-                <div class="form-floating mb-3">
-                    <input type="tel" class="form-control" id="phoneNumber" placeholder="Phone Number" required>
-                    <label for="phoneNumber">Phone Number</label>
-                </div>
-                <div class="form-floating mb-3">
-                    <input type="email" class="form-control" id="signupEmail" placeholder="name@example.com" required>
-                    <label for="signupEmail">Email address</label>
-                </div>
-                <div class="form-floating mb-3">
-                    <input type="password" class="form-control" id="signupPassword" placeholder="Password" required>
-                    <label for="signupPassword">Password</label>
-                </div>
-                <button type="submit" class="btn btn-secondary w-100">Sign Up</button>
-            </form>
-            <p class="text-center mt-3">
-                Already have an account? <a href="login.html">Login</a>
-            </p>
+            </div>
         </div>
     </div>
+
+    <!-- Toast for notifications -->
+    <div class="toast-container position-fixed top-0 end-0 p-4">
+        <div id="authToast" class="toast" role="alert" aria-live="polite" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header border-0">
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                <!-- Message will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="scripts/main.js"></script>
 </body>
 </html>
