@@ -589,7 +589,7 @@
                             <i class="${fileIcon} me-2"></i>
                             ${fileName}
                         `);
-                        messageBubble.append($("<div>").addClass("message-time").text(formatDate(new Date())));
+                        messageBubble.append($("<div>").addClass("message-time").text(formatDate(entry.timestamp)));
                         messageContainer.append(messageBubble);
                         chatHistory.append(messageContainer);
 
@@ -602,7 +602,7 @@
                                 ${entry.response.response}
                             `);
                             summaryBubble.append(summaryContent);
-                            summaryBubble.append($("<div>").addClass("message-time").text(formatDate(new Date())));
+                            summaryBubble.append($("<div>").addClass("message-time").text(formatDate(entry.response.timestamp)));
                             summaryContainer.append(summaryBubble);
                             chatHistory.append(summaryContainer);
                         }
@@ -616,7 +616,7 @@
                             } else {
                                 userMessage.text(entry.user_query);
                             }
-                            userMessage.append($("<div>").addClass("message-time").text(formatDate(new Date())));
+                            userMessage.append($("<div>").addClass("message-time").text(formatDate(entry.timestamp)));
                             userContainer.append(userMessage);
                             chatHistory.append(userContainer);
                         }
@@ -678,7 +678,7 @@
                                 messageBubble.append(chartsContainer);
                             }
 
-                            messageBubble.append($("<div>").addClass("message-time").text(formatDate(new Date())));
+                            messageBubble.append($("<div>").addClass("message-time").text(formatDate(entry.response.timestamp)));
                             assistantContainer.append(messageBubble);
                             chatHistory.append(assistantContainer);
                         }
@@ -720,32 +720,8 @@
                 // Clear input
                 queryInput.val("");
                 
-                // Add user message
-                const chatHistory = $("#chat-history");
-                const userMessage = $("<div>").addClass("message-container user-container");
-                const userBubble = $("<div>").addClass("message user-message").text(query);
-                const userTime = $("<div>").addClass("message-time")
-                    .text(formatDate(new Date()));
-                userBubble.append(userTime);
-                userMessage.append(userBubble);
-                chatHistory.append(userMessage);
-                
-                // Add loading message
-                const loadingMessage = $("<div>").addClass("message-container assistant-container");
-                const loadingContent = $("<div>").addClass("message assistant-message");
-                const typingIndicator = $("<div>").addClass("typing-indicator")
-                    .append($("<div>").addClass("typing-dot"))
-                    .append($("<div>").addClass("typing-dot"))
-                    .append($("<div>").addClass("typing-dot"));
-                loadingContent.append(typingIndicator);
-                loadingMessage.append(loadingContent);
-                chatHistory.append(loadingMessage);
-                
-                // Scroll to bottom
-                chatHistory.scrollTop(chatHistory[0].scrollHeight);
-                
                 try {
-                    // Send query to backend
+                    // Send query to backend first to get the timestamp
                     const response = await fetch(`${BASE_URL}/chat/`, {
                         method: "POST",
                         headers: {
@@ -767,6 +743,30 @@
                     
                     const result = await response.json();
                     
+                    // Add user message with timestamp from response
+                    const chatHistory = $("#chat-history");
+                    const userMessage = $("<div>").addClass("message-container user-container");
+                    const userBubble = $("<div>").addClass("message user-message").text(query);
+                    const userTime = $("<div>").addClass("message-time")
+                        .text(formatDate(result.timestamp));
+                    userBubble.append(userTime);
+                    userMessage.append(userBubble);
+                    chatHistory.append(userMessage);
+                    
+                    // Add loading message
+                    const loadingMessage = $("<div>").addClass("message-container assistant-container");
+                    const loadingContent = $("<div>").addClass("message assistant-message");
+                    const typingIndicator = $("<div>").addClass("typing-indicator")
+                        .append($("<div>").addClass("typing-dot"))
+                        .append($("<div>").addClass("typing-dot"))
+                        .append($("<div>").addClass("typing-dot"));
+                    loadingContent.append(typingIndicator);
+                    loadingMessage.append(loadingContent);
+                    chatHistory.append(loadingMessage);
+                    
+                    // Scroll to bottom
+                    chatHistory.scrollTop(chatHistory[0].scrollHeight);
+                    
                     // Remove loading message
                     loadingMessage.remove();
                     
@@ -786,7 +786,7 @@
                     }
                     
                     const assistantTime = $("<div>").addClass("message-time")
-                        .text(formatDate(new Date()));
+                        .text(formatDate(result.response.timestamp));
                     messageBubble.append(assistantTime);
                     assistantMessage.append(messageBubble);
                     chatHistory.append(assistantMessage);

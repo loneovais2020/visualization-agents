@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 from fastapi.staticfiles import StaticFiles
 import shutil
+from datetime import datetime
 
 load_dotenv()
 
@@ -424,9 +425,11 @@ async def upload_file(project_id: str = Form(...), file: UploadFile = File(...))
     # Add file upload entry to chat history
     chat_entry = {
         "user_query": f"[FILE]{file.filename}",
+        "timestamp": datetime.utcnow(),
         "response": {
             "response": summary.content,
-            "created_charts": []
+            "created_charts": [],
+            "timestamp": datetime.utcnow()
         }
     }
 
@@ -556,13 +559,15 @@ async def chat(request: ChatRequest):
     # Ensure charts directory exists
     os.makedirs(charts_folder, exist_ok=True)
     
+    # Extract file extension if a file was selected
+    file_extension = file_name.split('.')[-1].lower() if file_name else ''
+    
     if file_extension in ["csv", "xlsx"]:
         # Process CSV or XLSX files
         if file_extension == "csv":
             df = pd.read_csv(file_path)
         elif file_extension =="xlsx":
             df = pd.read_excel(file_path)
-    
     elif file_extension in ["pdf", "txt", "docx"]:
         print("""Entering ["pdf", "txt", "docx"] Block""")
         file_content = file_processing_crew.kickoff({"user_query": request.user_query, "file_content": read_file_content(file_path)})
@@ -604,9 +609,11 @@ async def chat(request: ChatRequest):
     
     response_data = {
         "user_query": request.user_query,
+        "timestamp": datetime.utcnow(),
         "response": {
             "response": json_content["response"],
-            "created_charts": json_content["created_charts"]
+            "created_charts": json_content["created_charts"],
+            "timestamp": datetime.utcnow()
         }
     }
     
