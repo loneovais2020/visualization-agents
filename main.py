@@ -356,9 +356,11 @@ async def create_project(project: Project):
     # Save project details to MongoDB
     projects_collection.insert_one(project_data)
     
-    # Create project directory
-    project_dir = os.path.join(FILES_DIR, f"{project.project_name}_{project_id}", "uploaded_files")
-    os.makedirs(project_dir, exist_ok=True)
+    # Create project directories
+    project_base_dir = os.path.join(FILES_DIR, f"{project.project_name}_{project_id}")
+    os.makedirs(project_base_dir, exist_ok=True)
+    os.makedirs(os.path.join(project_base_dir, "uploaded_files"), exist_ok=True)
+    os.makedirs(os.path.join(project_base_dir, "created_charts"), exist_ok=True)
     
     return {
         "project_id": project_id,
@@ -547,21 +549,12 @@ async def chat(request: ChatRequest):
     file_name = file_selection_crew.kickoff(inputs=inputs)
     file_name = str(file_name.raw)
 
-    print("----------------------------------------")
-    print(type(file_name))
-    print(file_name)
-    print("----------------------------------------")
-
-
-
-    file_extension = file_name.rsplit('.', 1)[-1].lower()
-    print("----------------------------------------")
-    print(f"File extension is {file_extension}")
-    print("----------------------------------------")
-
     project_folder = f"{project['project_name']}_{request.project_id}"
     file_path = os.path.join(FILES_DIR, project_folder, "uploaded_files", file_name)
     charts_folder = os.path.join(FILES_DIR, project_folder, "created_charts")
+    
+    # Ensure charts directory exists
+    os.makedirs(charts_folder, exist_ok=True)
     
     if file_extension in ["csv", "xlsx"]:
         # Process CSV or XLSX files
@@ -571,62 +564,51 @@ async def chat(request: ChatRequest):
             df = pd.read_excel(file_path)
     
     elif file_extension in ["pdf", "txt", "docx"]:
-            print("""Entering ["pdf", "txt", "docx"] Block""")
-            file_content = file_processing_crew.kickoff({"user_query": request.user_query, "file_content": read_file_content(file_path)})
-            formatted_csv_content = extract_csv_content(str(file_content.raw))
-            df = pd.read_csv(io.StringIO(formatted_csv_content))
-
-
+        print("""Entering ["pdf", "txt", "docx"] Block""")
+        file_content = file_processing_crew.kickoff({"user_query": request.user_query, "file_content": read_file_content(file_path)})
+        formatted_csv_content = extract_csv_content(str(file_content.raw))
+        df = pd.read_csv(io.StringIO(formatted_csv_content))
     else:
         print("Entering FILE EXTENSION '' BLOCK.")
         internet_content = internet_search_analysis_crew.kickoff({"user_query": request.user_query})
         formatted_csv_content = extract_csv_content(str(internet_content.raw))
         df = pd.read_csv(io.StringIO(formatted_csv_content))
 
-
-
-
-    print(df.head())
-
     agent_executor = create_pandas_dataframe_agent(
-    llm_model,
-    df,
-    # extra_tools=,
-    # agent_type="tool-calling",
-    allow_dangerous_code= True,
-    handle_parsing_errors=_handle_error,
-    verbose=True
-)
+        llm_model,
+        df,
+        allow_dangerous_code=True,
+        handle_parsing_errors=_handle_error,
+        verbose=True
+    )
         
     response = agent_executor.invoke(data_analysis_prompt(request.user_query, charts_folder))
-    
-    # Extract just the text response from the output
     response_text = response['output']
     
     # Get charts from the created_charts folder
     created_charts = []
     if os.path.exists(charts_folder):
-        created_charts = [os.path.join(charts_folder, f) for f in os.listdir(charts_folder) 
+        created_charts = [f for f in os.listdir(charts_folder) 
                          if os.path.isfile(os.path.join(charts_folder, f))]
-        
-
-    print(f"Raw response from model is: {response_text}")
-
     
-    # Try to extract JSON content
     json_content = extract_json_content(response_text)
-    print(f"json content is {json_content}")
-
-
-    response_data = {
-            "user_query": request.user_query,
-            "response": {
-                "response": json_content["response"],
-                "created_charts": json_content["created_charts"]
-            }
-        }
     
-    print("Response data:", response_data)
+    # Ensure the response has the correct structure
+    if not isinstance(json_content, dict):
+        json_content = {
+            "response": str(response_text),
+            "created_charts": created_charts
+        }
+    elif "created_charts" not in json_content:
+        json_content["created_charts"] = created_charts
+    
+    response_data = {
+        "user_query": request.user_query,
+        "response": {
+            "response": json_content["response"],
+            "created_charts": json_content["created_charts"]
+        }
+    }
     
     # Update the project's chat_history in MongoDB
     projects_collection.update_one(

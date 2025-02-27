@@ -638,17 +638,36 @@
                             if (entry.response.created_charts && entry.response.created_charts.length > 0) {
                                 const chartsContainer = $("<div>").addClass("charts-container mt-3");
                                 entry.response.created_charts.forEach(chartPath => {
+                                    // Get the project folder name
+                                    const projectFolder = `${currentProjectName}_${currentProjectId}`;
+                                    
+                                    // Construct the full URL for the image
+                                    const imageUrl = `${BASE_URL}/static/${projectFolder}/created_charts/${chartPath}`;
+                                    
                                     const chartImg = $("<img>")
                                         .addClass("chart-image")
-                                        .attr("src", `static/${currentProjectName}_${currentProjectId}/created_charts/${chartPath}`)
+                                        .attr("src", imageUrl)
                                         .attr("alt", "Generated Chart")
+                                        .on("click", function() {
+                                            // Update modal image and download button
+                                            $("#modalChartImage").attr("src", imageUrl);
+                                            $("#downloadChartBtn").attr("href", imageUrl);
+                                            $("#downloadChartBtn").attr("download", chartPath);
+                                            
+                                            // Show modal
+                                            new bootstrap.Modal(document.getElementById('chartModal')).show();
+                                        })
                                         .on("error", function() {
+                                            console.error("Failed to load image:", imageUrl);
                                             $(this).after(`
                                                 <div class="alert alert-danger d-flex align-items-center p-3 rounded-3 shadow-sm">
                                                     <i class="fas fa-exclamation-circle fa-2x me-3"></i>
                                                     <div>
                                                         <h6 class="mb-1">Failed to Load Chart</h6>
-                                                        <small>${chartPath}</small>
+                                                        <small>Error loading: ${chartPath}</small>
+                                                        <div class="mt-2">
+                                                            <small class="text-muted">URL attempted: ${imageUrl}</small>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             `);
@@ -778,7 +797,7 @@
                         
                         result.response.created_charts.forEach(chartPath => {
                             // Get the project folder name
-                            const projectFolder = `${projectData.project_name}_${projectData.project_id}`;
+                            const projectFolder = `${currentProjectName}_${currentProjectId}`;
                             
                             // Construct the full URL for the image
                             const imageUrl = `${BASE_URL}/static/${projectFolder}/created_charts/${chartPath}`;
