@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles/main.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -343,6 +344,63 @@
         .assistant-message .file-summary {
             border-left: 3px solid var(--primary-color);
         }
+        
+        /* Markdown Styles */
+        .markdown-content {
+            font-family: inherit;
+        }
+        .markdown-content code {
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .markdown-content pre {
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        .markdown-content p {
+            margin-bottom: 1rem;
+        }
+        .markdown-content ul, .markdown-content ol {
+            margin-bottom: 1rem;
+            padding-left: 2rem;
+        }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3,
+        .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        .markdown-content table {
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+        .markdown-content table th,
+        .markdown-content table td {
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 0.5rem;
+        }
+        .markdown-content table th {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        .user-message .markdown-content {
+            color: white;
+        }
+        .user-message .markdown-content code {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .user-message .markdown-content pre {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -425,6 +483,7 @@
             const token = localStorage.getItem("access_token");
             const BASE_URL = "http://127.0.0.1:8000";
             let currentProjectId = null;
+            let currentProjectName = null;
             let projectData = null;
 
             if (!token) {
@@ -478,135 +537,158 @@
                 }
             }
 
+            // Configure marked options
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+                headerIds: false,
+                mangle: false
+            });
+
+            // Function to safely render markdown
+            function renderMarkdown(content) {
+                try {
+                    return marked.parse(content);
+                } catch (e) {
+                    console.error('Error parsing markdown:', e);
+                    return content; // Fallback to plain text if markdown parsing fails
+                }
+            }
+
+            // Function to check if content looks like markdown
+            function looksLikeMarkdown(content) {
+                // Check for common markdown patterns
+                const markdownPatterns = [
+                    /[*_]{1,2}[^*_]+[*_]{1,2}/, // Bold/italic
+                    /^#{1,6}\s/, // Headers
+                    /`[^`]+`/, // Inline code
+                    /```[\s\S]*?```/, // Code blocks
+                    /\[[^\]]+\]\([^)]+\)/, // Links
+                    /^\s*[-*+]\s/, // Lists
+                    /^\s*\d+\.\s/, // Numbered lists
+                    /\|[^|]+\|/, // Tables
+                    /^>\s/ // Blockquotes
+                ];
+                
+                return markdownPatterns.some(pattern => pattern.test(content));
+            }
+
             // Display a conversation in the chat history
-            function displayConversation(chat) {
+            function displayConversation(conversation) {
                 const chatHistory = $("#chat-history");
                 chatHistory.empty();
-                
-                console.log("Chat data:", chat); // Debug log
-                
-                // Add user message
-                const userMessage = $("<div>").addClass("message-container user-container");
-                const userBubble = $("<div>").addClass("message user-message");
-                
-                // Check if this is a file upload message
-                if (chat.user_query.startsWith('[FILE]')) {
-                    const fileName = chat.user_query.substring(6); // Remove [FILE] prefix
-                    const fileExtension = fileName.split('.').pop().toLowerCase();
-                    
-                    // Get appropriate icon based on file type
-                    let fileIcon = '';
-                    switch (fileExtension) {
-                        case 'xlsx':
-                        case 'xls':
-                            fileIcon = 'fa-file-excel';
-                            break;
-                        case 'pdf':
-                            fileIcon = 'fa-file-pdf';
-                            break;
-                        case 'docx':
-                        case 'doc':
-                            fileIcon = 'fa-file-word';
-                            break;
-                        case 'txt':
-                            fileIcon = 'fa-file-alt';
-                            break;
-                        case 'csv':
-                            fileIcon = 'fa-file-csv';
-                            break;
-                        default:
-                            fileIcon = 'fa-file';
-                    }
-                    
-                    userBubble.html(`
-                        <div class="d-flex align-items-center">
-                            <i class="fas ${fileIcon} me-2"></i>
-                            <span>${fileName}</span>
-                        </div>
-                    `);
-                } else {
-                    userBubble.text(chat.user_query);
-                }
-                
-                const userTime = $("<div>").addClass("message-time")
-                    .text(formatDate(chat.timestamp));
-                userBubble.append(userTime);
-                userMessage.append(userBubble);
-                chatHistory.append(userMessage);
-                
-                // Add assistant message
-                const assistantMessage = $("<div>").addClass("message-container assistant-container");
-                const messageBubble = $("<div>").addClass("message assistant-message");
-                
-                // Extract response text
-                let responseText = '';
-                if (chat.response.type === 'file_upload') {
-                    responseText = chat.response.response; // File summary
-                    messageBubble.html(`
-                        <div class="file-summary">
-                            <strong>File Summary:</strong><br>
-                            ${responseText}
-                        </div>
-                    `);
-                } else {
-                    responseText = chat.response.response || '';
-                    messageBubble.text(responseText);
-                }
-                
-                const assistantTime = $("<div>").addClass("message-time")
-                    .text(formatDate(chat.timestamp));
-                messageBubble.append(assistantTime);
-                
-                assistantMessage.append(messageBubble);
-                chatHistory.append(assistantMessage);
-                
-                // Handle charts
-                if (chat.response.created_charts && chat.response.created_charts.length > 0) {
-                    const chartsContainer = $("<div>").addClass("charts-container");
-                    
-                    chat.response.created_charts.forEach(chartPath => {
-                        // Get the project folder name
-                        const projectFolder = `${projectData.project_name}_${projectData.project_id}`;
-                        
-                        // Construct the full URL for the image
-                        const imageUrl = `${BASE_URL}/static/${projectFolder}/created_charts/${chartPath}`;
-                        
-                        const img = $("<img>")
-                            .addClass("chart-image")
-                            .attr("src", imageUrl)
-                            .attr("alt", "Chart")
-                            .on("click", function() {
-                                // Update modal image and download button
-                                $("#modalChartImage").attr("src", imageUrl);
-                                $("#downloadChartBtn").attr("href", imageUrl);
-                                $("#downloadChartBtn").attr("download", chartPath);
-                                
-                                // Show modal
-                                new bootstrap.Modal(document.getElementById('chartModal')).show();
-                            });
-                        
-                        img.on('error', function() {
-                            console.error("Failed to load image:", imageUrl);
-                            $(this).after(`
-                                <div class="alert alert-danger d-flex align-items-center p-3 rounded-3 shadow-sm">
-                                    <i class="fas fa-exclamation-circle fa-2x me-3"></i>
-                                    <div>
-                                        <h6 class="mb-1">Failed to Load Chart</h6>
-                                        <small>${chartPath}</small>
-                                    </div>
-                                </div>
+
+                conversation.forEach(entry => {
+                    if (entry.user_query.startsWith('[FILE]')) {
+                        // Handle file upload messages
+                        const messageContainer = $("<div>").addClass("message-container user-container");
+                        const messageBubble = $("<div>").addClass("message user-message");
+                        const fileName = entry.user_query.substring(6);
+                        const fileIcon = getFileIcon(fileName);
+                        messageBubble.html(`
+                            <i class="${fileIcon} me-2"></i>
+                            ${fileName}
+                        `);
+                        messageBubble.append($("<div>").addClass("message-time").text(formatDate(new Date())));
+                        messageContainer.append(messageBubble);
+                        chatHistory.append(messageContainer);
+
+                        // Add file summary as assistant message
+                        if (entry.response && entry.response.response) {
+                            const summaryContainer = $("<div>").addClass("message-container assistant-container");
+                            const summaryBubble = $("<div>").addClass("message assistant-message");
+                            const summaryContent = $("<div>").addClass("file-summary").html(`
+                                <strong>File Summary:</strong>
+                                ${entry.response.response}
                             `);
-                            $(this).remove();
-                        });
-                        
-                        chartsContainer.append(img);
-                    });
-                    
-                    chatHistory.append(chartsContainer);
-                }
-                
+                            summaryBubble.append(summaryContent);
+                            summaryBubble.append($("<div>").addClass("message-time").text(formatDate(new Date())));
+                            summaryContainer.append(summaryBubble);
+                            chatHistory.append(summaryContainer);
+                        }
+                    } else {
+                        // Handle regular messages
+                        if (entry.user_query) {
+                            const userContainer = $("<div>").addClass("message-container user-container");
+                            const userMessage = $("<div>").addClass("message user-message");
+                            if (looksLikeMarkdown(entry.user_query)) {
+                                userMessage.html(`<div class="markdown-content">${renderMarkdown(entry.user_query)}</div>`);
+                            } else {
+                                userMessage.text(entry.user_query);
+                            }
+                            userMessage.append($("<div>").addClass("message-time").text(formatDate(new Date())));
+                            userContainer.append(userMessage);
+                            chatHistory.append(userContainer);
+                        }
+
+                        if (entry.response) {
+                            const assistantContainer = $("<div>").addClass("message-container assistant-container");
+                            const messageBubble = $("<div>").addClass("message assistant-message");
+                            
+                            const responseText = entry.response.response || '';
+                            if (looksLikeMarkdown(responseText)) {
+                                const markdownWrapper = $("<div>").addClass("markdown-content")
+                                    .html(renderMarkdown(responseText));
+                                messageBubble.append(markdownWrapper);
+                            } else {
+                                messageBubble.text(responseText);
+                            }
+
+                            // Handle charts if present
+                            if (entry.response.created_charts && entry.response.created_charts.length > 0) {
+                                const chartsContainer = $("<div>").addClass("charts-container mt-3");
+                                entry.response.created_charts.forEach(chartPath => {
+                                    const chartImg = $("<img>")
+                                        .addClass("chart-image")
+                                        .attr("src", `static/${currentProjectName}_${currentProjectId}/created_charts/${chartPath}`)
+                                        .attr("alt", "Generated Chart")
+                                        .on("error", function() {
+                                            $(this).after(`
+                                                <div class="alert alert-danger d-flex align-items-center p-3 rounded-3 shadow-sm">
+                                                    <i class="fas fa-exclamation-circle fa-2x me-3"></i>
+                                                    <div>
+                                                        <h6 class="mb-1">Failed to Load Chart</h6>
+                                                        <small>${chartPath}</small>
+                                                    </div>
+                                                </div>
+                                            `);
+                                            $(this).remove();
+                                        });
+                                    chartsContainer.append(chartImg);
+                                });
+                                messageBubble.append(chartsContainer);
+                            }
+
+                            messageBubble.append($("<div>").addClass("message-time").text(formatDate(new Date())));
+                            assistantContainer.append(messageBubble);
+                            chatHistory.append(assistantContainer);
+                        }
+                    }
+                });
+
                 // Scroll to bottom
                 chatHistory.scrollTop(chatHistory[0].scrollHeight);
+            }
+
+            // Helper function to get appropriate file icon
+            function getFileIcon(filename) {
+                const ext = filename.split('.').pop().toLowerCase();
+                switch (ext) {
+                    case 'xlsx':
+                    case 'xls':
+                        return 'fas fa-file-excel';
+                    case 'pdf':
+                        return 'fas fa-file-pdf';
+                    case 'doc':
+                    case 'docx':
+                        return 'fas fa-file-word';
+                    case 'txt':
+                        return 'fas fa-file-alt';
+                    case 'csv':
+                        return 'fas fa-file-csv';
+                    default:
+                        return 'fas fa-file';
+                }
             }
 
             // Handle sending new queries
@@ -672,7 +754,18 @@
                     // Update assistant response creation
                     const assistantMessage = $("<div>").addClass("message-container assistant-container");
                     const messageBubble = $("<div>").addClass("message assistant-message");
-                    messageBubble.text(result.response.response || '');
+                    
+                    const responseText = result.response.response || '';
+                    // Check if response looks like markdown
+                    if (looksLikeMarkdown(responseText)) {
+                        const markdownWrapper = $("<div>").addClass("markdown-content")
+                            .html(renderMarkdown(responseText));
+                        messageBubble.append(markdownWrapper);
+                    } else {
+                        // For non-markdown content, use text() to properly escape HTML
+                        messageBubble.text(responseText);
+                    }
+                    
                     const assistantTime = $("<div>").addClass("message-time")
                         .text(formatDate(new Date()));
                     messageBubble.append(assistantTime);
@@ -912,7 +1005,6 @@
             async function loadProjectData() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const projectId = urlParams.get("id");
-                currentProjectId = projectId;
                 
                 if (!projectId) {
                     alert("Project ID not found in URL");
@@ -924,8 +1016,7 @@
                     const response = await fetch(`${BASE_URL}/project/${projectId}`, {
                         method: "GET",
                         headers: {
-                            "Authorization": `Bearer ${token}`,
-                            "Content-Type": "application/json"
+                            "Authorization": `Bearer ${token}`
                         }
                     });
 
@@ -942,11 +1033,9 @@
                         return;
                     }
 
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
                     projectData = await response.json();
+                    currentProjectId = projectId;
+                    currentProjectName = projectData.project_name;
                     
                     // Set project title
                     $("#project-title").text(projectData.project_name);
@@ -965,36 +1054,13 @@
                             if (chat.user_query.startsWith('[FILE]')) {
                                 const fileName = chat.user_query.substring(6);
                                 const fileExtension = fileName.split('.').pop().toLowerCase();
-                                
-                                // Get appropriate icon based on file type
-                                switch (fileExtension) {
-                                    case 'xlsx':
-                                    case 'xls':
-                                        icon = 'fa-file-excel';
-                                        break;
-                                    case 'pdf':
-                                        icon = 'fa-file-pdf';
-                                        break;
-                                    case 'docx':
-                                    case 'doc':
-                                        icon = 'fa-file-word';
-                                        break;
-                                    case 'txt':
-                                        icon = 'fa-file-alt';
-                                        break;
-                                    case 'csv':
-                                        icon = 'fa-file-csv';
-                                        break;
-                                    default:
-                                        icon = 'fa-file';
-                                }
-                                
+                                icon = getFileIcon(fileName);
                                 queryText = fileName;
                             } else {
                                 queryText = chat.user_query.length > 30 
                                     ? chat.user_query.substring(0, 30) + "..." 
                                     : chat.user_query;
-                                icon = 'fa-comment';
+                                icon = 'fas fa-comment';
                             }
                             
                             const queryDiv = $("<div>")
@@ -1002,37 +1068,39 @@
                                 .attr("data-index", index)
                                 .html(`
                                     <div class="d-flex align-items-center">
-                                        <i class="fas ${icon} me-2"></i>
+                                        <i class="${icon} me-2"></i>
                                         <span>${queryText}</span>
                                     </div>
                                 `)
                                 .on("click", function() {
                                     $(".query-item").removeClass("active");
                                     $(this).addClass("active");
-                                    displayConversation(chat);
+                                    displayConversation([projectData.chat_history[index]]);
                                 });
                             $("#query-list").append(queryDiv);
                         });
                         
                         // Display the most recent conversation by default
                         $(".query-item").last().addClass("active");
-                        displayConversation(projectData.chat_history[projectData.chat_history.length - 1]);
+                        displayConversation([projectData.chat_history[projectData.chat_history.length - 1]]);
                     } else {
-                        $("#query-list").html("<p>No queries yet for this project.</p>");
+                        $("#query-list").html("<p class='text-muted p-3'>No queries yet for this project.</p>");
                         $("#chat-history").html(`
-                            <div class="text-center mt-5">
+                            <div class="text-center mt-5 text-muted">
+                                <i class="fas fa-comments fa-3x mb-3"></i>
                                 <h4>No conversations yet</h4>
-                                <p>Start by asking a question about your data below.</p>
+                                <p>Start by asking a question or uploading a file below.</p>
                             </div>
                         `);
                     }
                 } catch (error) {
                     console.error("Error loading project data:", error);
                     $("#project-title").text("Error Loading Project");
-                    $("#query-list").html(`
-                        <div class="alert alert-danger">
-                            Failed to load project data. 
-                            <a href="projects.html" class="alert-link">Return to projects</a>
+                    $("#chat-history").html(`
+                        <div class="alert alert-danger m-4">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            Failed to load project data. Please try refreshing the page or 
+                            <a href="projects.html" class="alert-link">return to projects</a>.
                         </div>
                     `);
                 }
